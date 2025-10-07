@@ -13,8 +13,10 @@ __pycache__/
 venv/
 .python-version
 .env
+.env copy
 .env.*
 .envrc
+!.env.example
 
 # --- Flask / Local data ---
 instance/
