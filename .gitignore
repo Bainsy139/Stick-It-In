@@ -1,0 +1,51 @@
+# --- OS / Editors ---
+.DS_Store
+.vscode/
+.idea/
+
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.venv/
+venv/
+.python-version
+.env
+.env.*
+.envrc
+
+# --- Flask / Local data ---
+instance/
+*.db
+*.sqlite3
+
+# --- Credentials / Keys (never commit) ---
+*.pem
+*.key
+*.p12
+*.keystore
+*.jks
+serviceAccount*.json
+firebase-key*.json
+credentials*.json
+firebase_key.json
+firebase_key_path/
+
+# --- Frontend / Builds ---
+node_modules/
+dist/
+build/
+
+# --- Test / Tooling caches & reports ---
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+
+# --- Misc caches ---
+.cache/
