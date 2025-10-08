@@ -1,0 +1,385 @@
+{% extends "base.html" %} {% block title %}Marketplace – Stick It In{% endblock %} {% block content
+%}
+<style>
+  .market-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    width: 100%;
+  }
+  .market-card {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    align-items: stretch;
+    background: #f6faff;
+    border-radius: 999px;
+    box-shadow: 0 1px 4px 0 rgba(22, 79, 179, 0.08);
+    padding: 0 20px 0 0;
+    min-height: 64px;
+    margin: 0;
+    border: none;
+    transition: box-shadow 0.15s;
+  }
+  .market-card:not(:last-child) {
+    margin-bottom: 0;
+  }
+  .market-card:hover {
+    box-shadow: 0 2px 8px 0 rgba(22, 79, 179, 0.13);
+  }
+  .market-badge {
+    display: flex;
+    align-items: center;
+    margin-right: 10px;
+    margin-left: 6px;
+    margin-top: 0;
+    margin-bottom: 0;
+    height: 100%;
+  }
+  .badge-soldout,
+  .badge-low {
+    position: static;
+    top: auto;
+    right: auto;
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 700;
+    padding: 4px 12px;
+    border-radius: 999px;
+    display: inline-block;
+    min-width: 64px;
+    text-align: center;
+  }
+  .badge-soldout {
+    background: #ef4444;
+    color: #fff;
+  }
+  .badge-low {
+    background: #f59e0b;
+    color: #fff;
+  }
+  .market-icon {
+    font-size: 2rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 40px;
+    margin-right: 14px;
+  }
+  .market-main {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    flex: 1 1 0%;
+    min-width: 0;
+    padding: 10px 0;
+  }
+  .market-title {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 700;
+    color: #093759;
+    text-align: left;
+    line-height: 1.2;
+  }
+  .market-desc {
+    font-size: 0.93rem;
+    color: #3c4a5b;
+    margin: 2px 0 0 0;
+    text-align: left;
+    line-height: 1.25;
+    word-break: break-word;
+  }
+  .market-side {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    justify-content: center;
+    min-width: 120px;
+    padding-left: 18px;
+    gap: 6px;
+  }
+  .market-price {
+    font-size: 1rem;
+    font-weight: 600;
+    margin-bottom: 0;
+    color: #16a34a;
+    text-align: right;
+    white-space: nowrap;
+  }
+  .market-price.insufficient {
+    color: #ef4444;
+  }
+  .market-available {
+    font-size: 0.85rem;
+    color: #0f1c2e;
+    margin-top: 2px;
+    text-align: right;
+  }
+  .btn-buy {
+    width: auto;
+    min-width: 90px;
+    max-width: 100%;
+    background: #16a34a;
+    color: #fff;
+    padding: 6px 14px;
+    border: none;
+    border-radius: 999px;
+    font-weight: 700;
+    cursor: pointer;
+    font-size: 0.98rem;
+    margin-top: 2px;
+    margin-bottom: 2px;
+    box-shadow: 0 1px 2px rgba(22, 79, 179, 0.04);
+    transition: background 0.13s;
+    align-self: flex-end;
+  }
+  .btn-buy:disabled {
+    background: #9aa7b5;
+    cursor: not-allowed;
+  }
+  .wallet {
+    display: flex;
+    justify-content: center;
+  }
+  .wallet-pill {
+    background: #eef6ff;
+    border: 1px solid #cfe3ff;
+    color: #093759;
+    padding: 8px 12px;
+    border-radius: 999px;
+    font-weight: 700;
+  }
+  .wallet-pill .amount {
+    padding-left: 6px;
+    color: #16a34a;
+  }
+  @media (max-width: 900px) {
+    .market-card {
+      flex-direction: column;
+      align-items: stretch;
+      border-radius: 16px;
+      padding: 10px 10px 10px 0;
+      min-height: 0;
+      gap: 0;
+    }
+    .market-main {
+      padding: 0 0 8px 0;
+    }
+    .market-side {
+      align-items: flex-start;
+      padding-left: 0;
+      margin-top: 4px;
+      gap: 3px;
+    }
+    .market-badge {
+      margin-bottom: 8px;
+      margin-right: 0;
+      margin-left: 6px;
+    }
+  }
+  @media (max-width: 640px) {
+    h1 {
+      font-size: 1.6rem !important;
+    }
+    .market-grid {
+      gap: 12px;
+    }
+    .market-card {
+      border-radius: 14px;
+      padding: 8px 6px 8px 0;
+    }
+    .market-main {
+      padding: 0 0 6px 0;
+    }
+    .market-side {
+      min-width: 0;
+      width: 100%;
+      align-items: flex-start;
+      gap: 2px;
+    }
+    .btn-buy {
+      min-width: 0;
+      width: auto;
+      font-size: 0.96rem;
+    }
+  }
+  /* ---- KPI chip-style cards ---- */
+  .chip-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .chip {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    border: 1px solid #e6eef9;
+    background: #fff;
+    border-radius: 14px;
+    box-shadow: 0 1px 3px rgba(9, 55, 89, 0.06);
+    padding: 10px 12px;
+  }
+  .chip-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .chip-icon {
+    font-size: 1.4rem;
+    width: 28px;
+    text-align: center;
+  }
+  .chip-text {
+    min-width: 0;
+  }
+  .chip-title {
+    margin: 0;
+    font-weight: 800;
+    color: #093759;
+    line-height: 1.2;
+    font-size: 1rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chip-sub {
+    margin: 2px 0 0 0;
+    color: #3c4a5b;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .chip-badges {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .chip-pill {
+    font-size: 0.75rem;
+    font-weight: 800;
+    padding: 4px 10px;
+    border-radius: 999px;
+  }
+  .chip-pill.sold {
+    background: #ef4444;
+    color: #fff;
+  }
+  .chip-pill.low {
+    background: #f59e0b;
+    color: #fff;
+  }
+  .chip-pill.price {
+    background: #e8f8ee;
+    color: #16a34a;
+    border: 1px solid #b9ebc9;
+  }
+  .chip-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .chip-meta {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1;
+  }
+  .chip-available {
+    font-size: 0.8rem;
+    color: #0f1c2e;
+    opacity: 0.8;
+  }
+  @media (max-width: 700px) {
+    .chip {
+      flex-direction: column;
+      align-items: stretch;
+    }
+    .chip-right {
+      justify-content: space-between;
+    }
+    .chip-meta {
+      align-items: flex-start;
+    }
+  }
+</style>
+
+<div class="container" style="max-width: 1024px; margin: 0 auto; padding: 20px">
+  <h1
+    style="margin: 24px 0; font-size: 2rem; font-weight: bold; color: #093759; text-align: center"
+  >
+    Marketplace
+  </h1>
+
+  <div class="wallet" aria-live="polite">
+    <div class="wallet-pill">
+      🪙 Your Coins:
+      <span
+        class="amount"
+        style="color: {% if coin_balance > 0 %}#16a34a{% else %}#ef4444{% endif %};"
+      >
+        {{ coin_balance }}
+      </span>
+    </div>
+  </div>
+
+  <p style="margin: 8px 0 20px; font-size: 0.98rem; color: #093759; text-align: center">
+    Buy cards and <strong>antidotes</strong>, then issue cards from the home page. Stock updates are
+    periodic; some antidotes may be unlimited.
+  </p>
+
+  <!-- 🃏 CARDS & EXTRAS -->
+  <h2 style="margin-top: 40px; color: #093759">Cards & Antidotes</h2>
+  <p style="margin: 10px 0 20px; color: #093759">
+    Cards are stocked periodically; antidotes remove penalties you’ve received.
+  </p>
+
+  <div class="chip-list" style="margin-top: 20px">
+    {% for item in items %}
+    <div class="chip">
+      <div class="chip-left">
+        <div class="chip-icon">
+          {% if item.id == "red_card" %}🚫{% elif item.id == "yellow_card" %}⚠️{% elif item.id ==
+          "injury" %}💀 {% elif item.id == "hire_physio" %}🩺{% elif item.id == "bribe_ref" %}💸{%
+          elif item.id == "appeal_decision" %}⚖️ {% else %}🎲{% endif %}
+        </div>
+        <div class="chip-text">
+          <p class="chip-title">{{ item.name }}</p>
+          <p class="chip-sub">{{ item.description }}</p>
+          <div class="chip-badges">
+            {% if item.quantity is defined and item.quantity == 0 %}
+            <span class="chip-pill sold" aria-label="Sold out">SOLD&nbsp;OUT</span>
+            {% elif item.quantity is defined and item.quantity <= 3 %}
+            <span class="chip-pill low" aria-label="Low stock">LOW&nbsp;STOCK</span>
+            {% endif %}
+            <span class="chip-pill price">{{ item.price }} coins</span>
+          </div>
+        </div>
+      </div>
+      <div class="chip-right">
+        <div class="chip-meta">
+          {% if item.quantity is defined %}
+          <span class="chip-available">Available: {{ item.quantity }}</span>
+          {% endif %}
+        </div>
+        <form method="POST" action="/marketplace/buy-item/{{ item.id }}">
+          {% if item.quantity is defined and item.quantity == 0 %}
+          <button type="button" class="btn-buy" disabled>Sold out</button>
+          {% elif not item.can_afford %}
+          <button type="button" class="btn-buy" disabled>
+            Need {{ (item.price - coin_balance) if (item.price - coin_balance) > 0 else 0 }} more
+          </button>
+          {% else %}
+          <button type="submit" class="btn-buy">🛒 Purchase</button>
+          {% endif %}
+        </form>
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+{% endblock %}
