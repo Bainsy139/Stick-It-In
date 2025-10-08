@@ -1,0 +1,331 @@
+{% extends "base.html" %} {% block title %}Profile – Stick It In{% endblock %} {% block content %}
+<div class="page-wrapper">
+  <div
+    class="container"
+    style="max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px"
+  >
+    <header class="page-header">
+      <h1 class="page-title">Your Profile</h1>
+    </header>
+
+    <!-- Flash -->
+    {% with msgs = get_flashed_messages() %} {% if msgs %}
+    <p style="padding: 8px; border: 1px solid #e3eaf3; border-radius: 10px">{{ msgs[-1] }}</p>
+    {% endif %} {% endwith %}
+
+    <!-- Identity -->
+    <section
+      class="card"
+      style="padding: 16px; border: 1px solid #e3eaf3; border-radius: 12px; background: #fff"
+    >
+      <form method="POST" action="{{ url_for('profile_update') }}" style="display: grid; gap: 12px">
+        <div>
+          <label for="username" style="font-weight: 600">Team Name</label>
+          <input
+            id="username"
+            name="username"
+            value="{{ username or '' }}"
+            placeholder="bainsy"
+            autofocus
+          />
+        </div>
+
+        <div>
+          <label for="managerName" style="font-weight: 600">Manager name</label>
+          <input
+            id="managerName"
+            name="managerName"
+            value="{{ managerName or '' }}"
+            required
+            minlength="2"
+            maxlength="40"
+          />
+        </div>
+
+        <button
+          type="submit"
+          class="btn-primary"
+          style="height: 44px; border: 0; border-radius: 10px"
+        >
+          Save
+        </button>
+      </form>
+    </section>
+
+    <!-- Account -->
+    <section
+      class="card"
+      style="padding: 16px; border: 1px solid #e3eaf3; border-radius: 12px; background: #fff"
+    >
+      <h2 style="margin: 0 0 8px">Account</h2>
+      <p style="color: #6b7280; margin: 0 0 8px">
+        Update your sign-in email or send a password reset.
+      </p>
+      <div style="display: grid; gap: 8px">
+        <label for="emailNew" style="font-weight: 600">New email</label>
+        <input id="emailNew" type="email" placeholder="you@example.com" autocomplete="email" />
+        <div style="display: flex; gap: 8px; flex-wrap: wrap">
+          <button
+            id="btnUpdateEmail"
+            class="btn-primary"
+            style="height: 44px; border: 0; border-radius: 10px; flex: 1"
+          >
+            Update email
+          </button>
+          <button
+            id="btnResetPw"
+            type="button"
+            style="
+              height: 44px;
+              border: 1px solid #e3eaf3;
+              border-radius: 10px;
+              background: #fff;
+              flex: 1;
+            "
+          >
+            Send password reset
+          </button>
+        </div>
+        <p id="accountMsg" style="color: #6b7280; margin: 4px 0 0"></p>
+      </div>
+    </section>
+
+    <!-- Club picture -->
+    <section
+      class="card"
+      style="padding: 16px; border: 1px solid #e3eaf3; border-radius: 12px; background: #fff"
+    >
+      <h2 style="margin: 0 0 8px">Club picture</h2>
+      <p style="color: #6b7280; margin: 0 0 8px">
+        Upload a square JPG/PNG/WEBP. We’ll handle sizing server-side.
+      </p>
+      <form
+        action="{{ url_for('upload_avatar') }}"
+        method="POST"
+        enctype="multipart/form-data"
+        style="display: grid; gap: 8px"
+      >
+        <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap">
+          <img
+            id="clubPreview"
+            src="{{ clubImageUrl or url_for('static', filename='images/logoCircle.png') }}"
+            alt="Club image preview"
+            style="
+              width: 96px;
+              height: 96px;
+              border-radius: 50%;
+              object-fit: cover;
+              border: 1px solid #e3eaf3;
+            "
+          />
+          <input
+            id="clubFile"
+            name="avatar"
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            required
+          />
+        </div>
+        <button
+          class="btn-primary"
+          type="submit"
+          style="height: 44px; border: 0; border-radius: 10px"
+        >
+          Upload
+        </button>
+        <p id="clubMsg" style="color: #6b7280"></p>
+      </form>
+    </section>
+
+    <!-- Logout -->
+    <section
+      class="card"
+      style="padding: 16px; border: 1px solid #e3eaf3; border-radius: 12px; background: #fff"
+    >
+      <form id="logout">
+        <button
+          type="submit"
+          style="
+            height: 44px;
+            border: 1px solid #e3eaf3;
+            border-radius: 10px;
+            background: #fff;
+            width: 100%;
+          "
+        >
+          Log out
+        </button>
+      </form>
+    </section>
+  </div>
+</div>
+{% endblock %} {% block scripts %} {{ super() }}
+<script type="module">
+  // Firebase client setup uses global window.FIREBASE_CONFIG from base.html
+  import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js';
+  import {
+    getAuth,
+    onAuthStateChanged,
+    sendPasswordResetEmail,
+    updateEmail,
+    EmailAuthProvider,
+    reauthenticateWithCredential,
+    signInWithCustomToken,
+  } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js';
+  import {
+    getFirestore,
+    doc,
+    setDoc,
+  } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js';
+  import {
+    initializeAppCheck,
+    ReCaptchaV3Provider,
+  } from 'https://www.gstatic.com/firebasejs/9.23.0/firebase-app-check.js';
+
+  const app = initializeApp(window.FIREBASE_CONFIG);
+  const auth = getAuth(app);
+  const fdb = getFirestore(app);
+
+  // --- App Check ---
+  // Your Web App isn’t registered in App Check yet, so skip all App Check
+  // initialisation on localhost to avoid 403s from the App Check endpoint.
+  // When you’re ready for prod, register the Web app in Console and add your
+  // reCAPTCHA v3 site key to window.FIREBASE_APPCHECK_PUBLIC_KEY, then
+  // enable the production path below.
+  try {
+    const SITE_KEY_RAW = (window.FIREBASE_APPCHECK_PUBLIC_KEY || '').trim();
+    const IS_PLACEHOLDER = SITE_KEY_RAW.startsWith('YOUR_RECAPTCHA');
+    const IS_LOCAL =
+      location.hostname === 'localhost' ||
+      location.hostname === '127.0.0.1' ||
+      location.hostname.endsWith('.local');
+
+    if (IS_LOCAL) {
+      console.log('[profile] App Check: skipped on localhost (no registration)');
+      // Do nothing: don’t call initializeAppCheck at all.
+    } else if (SITE_KEY_RAW && !IS_PLACEHOLDER) {
+      initializeAppCheck(app, {
+        provider: new ReCaptchaV3Provider(SITE_KEY_RAW),
+        isTokenAutoRefreshEnabled: true,
+      });
+      console.log('[profile] App Check: reCAPTCHA v3 initialised');
+    } else {
+      console.log('[profile] App Check: disabled (no site key provided)');
+    }
+  } catch (e) {
+    console.warn('[profile] App Check init skipped:', e?.message || e);
+  }
+
+  // Ensure Firebase client is signed in using the server session (custom token bridge)
+  async function ensureClientSignedIn() {
+    if (auth.currentUser) {
+      console.log('[profile] client already signed in as', auth.currentUser.uid);
+      return true;
+    }
+    try {
+      const res = await fetch('/auth/custom_token', { credentials: 'same-origin' });
+      if (!res.ok) {
+        console.log('[profile] no server session; skipping client sign-in');
+        return false;
+      }
+      const data = await res.json();
+      const token = data && data.token;
+      if (!token) {
+        console.log('[profile] custom token missing in response');
+        return false;
+      }
+      const cred = await signInWithCustomToken(auth, token);
+      console.log('[profile] client signed in ✓', cred.user?.uid);
+      return true;
+    } catch (err) {
+      console.log('[profile] ensureClientSignedIn error:', err?.code || err?.message || err);
+      return false;
+    }
+  }
+  (async () => {
+    try {
+      await ensureClientSignedIn();
+    } catch {}
+  })();
+
+  const accountMsg = document.getElementById('accountMsg');
+  const clubMsg = document.getElementById('clubMsg');
+  const imgPreview = document.getElementById('clubPreview');
+  const fileInput = document.getElementById('clubFile');
+
+  // Keep preview on file select
+  fileInput.addEventListener('change', () => {
+    const file = fileInput.files?.[0];
+    if (!file) return;
+    imgPreview.src = URL.createObjectURL(file);
+  });
+
+  // Logout (server session)
+  document.getElementById('logout').addEventListener('submit', async (e) => {
+    e.preventDefault();
+    await fetch('/logout');
+    location.href = '/login';
+  });
+
+  // Auth state
+  onAuthStateChanged(auth, (u) => {
+    console.log('[profile] auth state:', u ? `signed in (${u.uid})` : 'signed out');
+    const emailInput = document.getElementById('emailNew');
+    if (u && emailInput && !emailInput.value) {
+      emailInput.placeholder = u.email || 'you@example.com';
+      // Clear any "Not authenticated" message if present
+      const cm = document.getElementById('clubMsg');
+      if (cm && cm.textContent.includes('Not authenticated')) cm.textContent = '';
+    }
+  });
+
+  // Update email
+  document.getElementById('btnUpdateEmail').addEventListener('click', async () => {
+    accountMsg.textContent = '';
+    const newEmail = document.getElementById('emailNew').value.trim();
+    if (!newEmail) {
+      accountMsg.textContent = 'Enter a new email.';
+      return;
+    }
+    try {
+      if (!auth.currentUser) throw new Error('Not authenticated in client.');
+      try {
+        await updateEmail(auth.currentUser, newEmail);
+      } catch (err) {
+        if (err.code === 'auth/requires-recent-login') {
+          const pw = prompt('Re-enter your password to confirm email change:');
+          if (!pw) throw err;
+          const cred = EmailAuthProvider.credential(auth.currentUser.email, pw);
+          await reauthenticateWithCredential(auth.currentUser, cred);
+          await updateEmail(auth.currentUser, newEmail);
+        } else {
+          throw err;
+        }
+      }
+      accountMsg.textContent = '✅ Email updated.';
+      const uid = auth.currentUser.uid;
+      await setDoc(
+        doc(fdb, 'users', uid),
+        { email: newEmail, updated_at: new Date() },
+        { merge: true }
+      );
+    } catch (e) {
+      accountMsg.textContent = '❌ ' + (e.message || 'Failed to update email.');
+    }
+  });
+
+  // Password reset
+  document.getElementById('btnResetPw').addEventListener('click', async () => {
+    accountMsg.textContent = '';
+    const u = auth.currentUser;
+    const targetEmail = u?.email || prompt('Enter your account email to reset password:');
+    if (!targetEmail) return;
+    try {
+      await sendPasswordResetEmail(auth, targetEmail);
+      accountMsg.textContent = '📧 Password reset email sent to ' + targetEmail;
+    } catch (e) {
+      accountMsg.textContent = '❌ ' + (e.message || 'Failed to send reset email.');
+    }
+  });
+</script>
+{% endblock %}
