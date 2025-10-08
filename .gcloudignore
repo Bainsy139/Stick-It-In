@@ -1,0 +1,55 @@
+# Base gcloudignore for Stick It In (SII)
+
+# Prevents large or sensitive local files from being sent to Cloud Build
+
+# --- VCS / Local metadata ---
+
+.gcloudignore
+.git
+.gitignore
+.vscode/
+.idea/
+
+# --- Virtual environments ---
+
+venv/
+.venv/
+
+# --- Local config and keys ---
+
+.env
+.env._
+!/.env.example
+firebase_key.json
+firebase_key_.json
+serviceAccount*.json
+credentials*.json
+
+# --- Python caches ---
+
+**pycache**/
+_.pyc
+_.pyo
+_.pyd
+_.egg-info/
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage\*
+htmlcov/
+
+# --- Build / Node artifacts ---
+
+node_modules/
+dist/
+build/
+
+# --- Logs / temp ---
+
+_.log
+_.tmp
+
+# --- Misc ---
+
+.DS_Store
