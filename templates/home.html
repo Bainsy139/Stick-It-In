@@ -1,0 +1,496 @@
+{% extends "base.html" %} {% block title %}Dashboard – Stick It In{% endblock %} {% block content %}
+<div class="dashboard-wrap">
+  <header class="page-header" aria-label="Club overview">
+    <h1 class="page-title">Club Home</h1>
+  </header>
+
+  {% if username %}
+  <!-- Club Header -->
+  <section class="club-header" aria-label="Club header">
+    <img
+      src="{{ clubImageUrl or url_for('static', filename='images/logoCircle.png') }}"
+      alt="Club logo"
+      class="club-logo"
+    />
+    <div class="club-meta">
+      <h2 class="club-name">{{ username }}</h2>
+      <p class="welcome-text">Manager: {{ managerName }}</p>
+    </div>
+  </section>
+
+  <!-- KPIs / Quick Actions (compact chip strip) -->
+  <nav class="kpi-strip" aria-label="Quick actions">
+    <a class="kpi-chip" href="/GameEntry" aria-label="Go to Game Entry">
+      <span class="kpi-chip__label">swipe for more -></span>
+    </a>
+    <a class="kpi-chip" href="/GameEntry" aria-label="Go to Game Entry">
+      <span class="kpi-chip__label">Preds Left</span>
+      <span class="kpi-chip__value">{{ prediction_count }}</span>
+    </a>
+    <a class="kpi-chip" href="/GameEntry#btts" aria-label="Go to BTTS section in Game Entry">
+      <span class="kpi-chip__label">BTTS Left</span>
+      <span class="kpi-chip__value">{{ btts_count }}</span>
+    </a>
+    <a class="kpi-chip" href="/teams" aria-label="Open Team Directory">
+      <span class="kpi-chip__label">Team Value</span>
+      <span class="kpi-chip__value">£{{ (team_value|default(0, true))|round(2) }}</span>
+    </a>
+    <a class="kpi-chip" href="/globalleague" aria-label="View Global League table">
+      <span class="kpi-chip__label">League Pos</span>
+      <span class="kpi-chip__value">{{ league_position if league_position else "–" }}</span>
+    </a>
+  </nav>
+
+  <!-- Week Info (sticky on mobile) -->
+  <section class="dash-card week-card" aria-live="polite">
+    <h4>Season {{ season_number }} – Week {{ week_number }}</h4>
+    {% if mode == "prediction_window" %}
+    <p id="week-timer" class="timer">⏳ Time left this week: {{ time_left_str }}</p>
+    {% else %}
+    <p id="week-timer" class="timer warn">⚠️ Match weekend in progress</p>
+    {% endif %}
+  </section>
+
+  <!-- Notifications (enable web push) -->
+  <section class="dash-card" aria-label="Notifications">
+    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap">
+      <strong>Match reminders</strong>
+      <button
+        id="enablePushBtn"
+        class="btn-primary"
+        type="button"
+        style="height: 36px; padding: 0 12px"
+      >
+        Enable notifications
+      </button>
+      <small id="pushStatus" class="muted"></small>
+    </div>
+  </section>
+
+  <!-- Issue a Card -->
+  <section class="dash-card" aria-label="Issue a card">
+    <h3>Issue a Card</h3>
+    {% if available_cards|length == 0 %}
+    <p class="muted">No cards available</p>
+    {% else %}
+    <form id="issueCardForm" class="card-form">
+      <label for="cardType">Card</label>
+      <select id="cardType" name="cardType" required>
+        {% if 'yellow' in available_cards %}
+        <option value="yellow">Yellow</option>
+        {% endif %} {% if 'red' in available_cards %}
+        <option value="red">Red</option>
+        {% endif %} {% if 'injury' in available_cards %}
+        <option value="injury">Injury</option>
+        {% endif %}
+      </select>
+
+      <label for="targetTeam">Target</label>
+      <select id="targetTeam" name="targetTeam" required>
+        {% for user in all_users %} {% if user.user_id != current_user_id %}
+        <option value="{{ user.user_id }}">{{ user.username or 'Unknown' }}</option>
+        {% endif %} {% endfor %}
+      </select>
+
+      <button type="submit" class="btn-primary">Send</button>
+    </form>
+    {% endif %}
+  </section>
+
+  <!-- My Stats Button -->
+  <section class="dash-card" aria-label="User stats">
+    <a href="/me/stats" class="btn-stats">📊 View My Stats</a>
+  </section>
+
+  <!-- Marketplace Button -->
+  <section class="dash-card" aria-label="Marketplace access">
+    <a href="/marketplace" class="btn-marketplace">🛒 Open Marketplace</a>
+  </section>
+
+  <!-- News -->
+  <section class="news-card" aria-label="News and updates">
+    <h4 class="news-title">📢 News & Updates</h4>
+    <ul class="news-list">
+      {% for item in news|reverse %} {% set parts = item.split(' - ', 1) %}
+      <li class="news-item">
+        <div class="news-icon">📰</div>
+        <div class="news-content">
+          {% if parts|length == 2 %}
+          <div class="news-head">
+            <span class="news-date">{{ parts[0] }}</span>
+          </div>
+          <div class="news-text">{{ parts[1] }}</div>
+          {% else %}
+          <div class="news-text">{{ item }}</div>
+          {% endif %}
+        </div>
+      </li>
+      {% endfor %}
+    </ul>
+  </section>
+
+  <!-- Card JS -->
+  <script>
+    const form = document.getElementById('issueCardForm');
+    if (form) {
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const type = document.getElementById('cardType').value;
+        const target = document.getElementById('targetTeam').value;
+        const res = await fetch(`/issue_card`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ card_type: type, target_user: target }),
+        });
+        const data = await res.json();
+        alert(data.message);
+      });
+    }
+  </script>
+  <script>
+    // Expose current user id to FCM helpers
+    window.__SII_CURRENT_UID = '{{ current_user_id }}';
+
+    // Wire the enable button to request permission + save token
+    (function () {
+      const btn = document.getElementById('enablePushBtn');
+      const statusEl = document.getElementById('pushStatus');
+      if (!btn) return;
+
+      function setStatus(msg) {
+        if (statusEl) statusEl.textContent = msg;
+      }
+
+      btn.addEventListener('click', async () => {
+        if (!window.requestNotificationPermissionAndSaveToken) {
+          console.warn('[FCM] helper not found: requestNotificationPermissionAndSaveToken');
+          setStatus('FCM not loaded');
+          return;
+        }
+        btn.disabled = true;
+        setStatus('Requesting permission…');
+        try {
+          await window.requestNotificationPermissionAndSaveToken(window.__SII_CURRENT_UID);
+          setStatus('Enabled');
+        } catch (e) {
+          console.error('[FCM] enable error', e);
+          setStatus('Blocked or failed');
+        } finally {
+          btn.disabled = false;
+        }
+      });
+    })();
+  </script>
+
+  <!-- Mobile-first styles for this page only -->
+  <style>
+    :root {
+      --ink: #093759;
+      --ink-2: #18304b;
+      --brand: #2066c7;
+      --bg-soft: #f6faff;
+      --line: #e3eaf3;
+      --radius: 14px;
+    }
+
+    /* --- Compact KPI chips --- */
+    .kpi-strip {
+      display: flex;
+      gap: 10px;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      padding: 2px 2px 6px;
+      scroll-snap-type: x mandatory;
+      margin-bottom: 10px;
+    }
+    .kpi-strip::-webkit-scrollbar {
+      height: 6px;
+    }
+    .kpi-strip::-webkit-scrollbar-thumb {
+      background: var(--brand);
+      border-radius: 6px;
+      transition: background 0.2s;
+    }
+    .kpi-strip::-webkit-scrollbar-thumb:hover {
+      background: #164a8c;
+    }
+    .kpi-chip {
+      flex: 0 0 auto;
+      min-width: 130px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 6px;
+      padding: 10px 12px;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      text-decoration: none;
+      color: inherit;
+      scroll-snap-align: start;
+      box-shadow: 0 1px 4px rgba(9, 55, 89, 0.05);
+    }
+    .kpi-chip:active {
+      transform: translateY(1px);
+    }
+    .kpi-chip__label {
+      font-size: 12px;
+      color: var(--ink-2);
+      letter-spacing: 0.02em;
+    }
+    .kpi-chip__value {
+      font-size: 1.15rem;
+      font-weight: 800;
+      color: var(--ink);
+    }
+
+    .page-header {
+      text-align: center;
+      margin: 16px 0 10px;
+    }
+    .page-title {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--ink);
+    }
+
+    .club-header {
+      display: grid;
+      grid-template-columns: 56px 1fr;
+      gap: 12px;
+      align-items: center;
+      padding: 10px 12px;
+      background: var(--bg-soft);
+      border-radius: var(--radius);
+      box-shadow: 0 1px 6px rgba(9, 55, 89, 0.04);
+      margin-bottom: 10px;
+    }
+    .club-logo {
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      object-fit: cover;
+    }
+    .club-name {
+      margin: 0;
+      font-size: 1.2rem;
+      color: var(--ink);
+    }
+    .welcome-text {
+      margin: 2px 0 0;
+      color: var(--ink-2);
+      opacity: 0.85;
+    }
+
+    /* Cards grid – single column by default; grows on larger screens */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 12px;
+    }
+
+    .dash-card {
+      background: #fff;
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      box-shadow: 0 1px 4px rgba(9, 55, 89, 0.05);
+    }
+
+    .dash-link {
+      display: block;
+      text-decoration: none;
+      color: inherit;
+    }
+    .dash-link:focus,
+    .dash-link:hover {
+      box-shadow: 0 0 0 3px rgba(32, 102, 199, 0.18);
+      outline: none;
+    }
+
+    .dash-card h3 {
+      margin: 0 0 6px;
+      font-size: 1rem;
+      color: var(--ink-2);
+      font-weight: 700;
+    }
+    .big {
+      font-size: 1.35rem;
+      font-weight: 800;
+      color: var(--ink);
+    }
+
+    .week-card {
+      position: sticky;
+      top: calc(env(safe-area-inset-top) + 8px);
+      z-index: 1;
+      margin-top: 10px;
+    }
+    .week-card h4 {
+      margin: 0 0 6px;
+      color: var(--brand);
+      font-size: 1rem;
+    }
+    .timer {
+      font-weight: 700;
+      margin: 0;
+    }
+    .timer.warn {
+      color: #b45309;
+    }
+
+    .card-form {
+      display: grid;
+      gap: 8px;
+    }
+    .card-form label {
+      font-weight: 600;
+      color: var(--ink-2);
+    }
+    .card-form select,
+    .card-form button {
+      height: 44px;
+      font-size: 1rem;
+    }
+    .card-form select {
+      padding: 6px 10px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
+    }
+    .btn-primary {
+      background: var(--brand);
+      color: #fff;
+      border: 0;
+      border-radius: 10px;
+    }
+    .muted {
+      color: var(--ink-2);
+      opacity: 0.7;
+    }
+
+    .news-card {
+      background: var(--bg-soft);
+      padding: 16px;
+      border-radius: var(--radius);
+      margin-top: 10px;
+      box-shadow: 0 1px 6px rgba(9, 55, 89, 0.04);
+    }
+    .news-title {
+      color: var(--brand);
+      font-weight: 800;
+      font-size: 1.1rem;
+      margin: 0 0 12px;
+      letter-spacing: 0.01em;
+    }
+    .news-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+      display: grid;
+      gap: 10px;
+    }
+    .news-item {
+      display: grid;
+      grid-template-columns: 36px 1fr;
+      gap: 10px;
+      align-items: start;
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+      box-shadow: 0 1px 4px rgba(9, 55, 89, 0.06);
+    }
+    .news-item:hover {
+      box-shadow: 0 3px 12px rgba(9, 55, 89, 0.08);
+    }
+    .news-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: #eef5ff;
+      font-size: 18px;
+    }
+    .news-content {
+      display: grid;
+      gap: 4px;
+    }
+    .news-head {
+      display: flex;
+      gap: 8px;
+      align-items: baseline;
+    }
+    .news-date {
+      display: inline-block;
+      font-weight: 800;
+      color: var(--ink);
+      background: #edf2f7;
+      border-radius: 999px;
+      padding: 2px 8px;
+      font-size: 12px;
+    }
+    .news-text {
+      color: var(--ink-2);
+      font-weight: 600;
+      line-height: 1.35;
+    }
+
+    /* Larger screens */
+    @media (min-width: 700px) {
+      .page-title {
+        font-size: 2rem;
+      }
+      .kpi-grid {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+    @media (min-width: 1024px) {
+      .kpi-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .btn-marketplace {
+      display: block;
+      text-align: center;
+      background: #f6a816; /* changed to brand blue */
+      color: #fff;
+      padding: 12px;
+      border-radius: 10px;
+      font-weight: 700;
+      text-decoration: none;
+      font-size: 1.1rem;
+      margin-top: 8px;
+    }
+    .btn-marketplace:hover {
+      background: #8d600d;
+    }
+
+    .btn-stats {
+      display: block;
+      text-align: center;
+      background: #16a34a; /* green highlight */
+      color: #fff;
+      padding: 12px;
+      border-radius: 10px;
+      font-weight: 700;
+      text-decoration: none;
+      font-size: 1.1rem;
+      margin-top: 8px;
+    }
+    .btn-stats:hover {
+      background: #15803d;
+    }
+  </style>
+
+  {% else %}
+  <div class="empty" style="text-align: center; padding: 60px">
+    <h2>👋 Welcome!</h2>
+    <p>
+      Set up your team name and manager name on your <a href="/profile">Profile</a> page to get
+      started.
+    </p>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
