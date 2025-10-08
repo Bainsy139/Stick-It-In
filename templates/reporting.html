@@ -1,0 +1,143 @@
+{% extends "base.html" %} {% block title %}Press Conference – Stick It In{% endblock %} {% block
+content %}
+<div class="container" style="max-width: 900px; margin: auto; padding: 40px">
+  <h1
+    style="margin: 24px 0; font-size: 2rem; font-weight: bold; color: #093759; text-align: center"
+  >
+    Press Conference
+  </h1>
+
+  <div style="text-align: center; margin-bottom: 24px">
+    <a
+      href="{{ url_for('about') }}"
+      style="
+        display: inline-block;
+        padding: 10px 16px;
+        border-radius: 999px;
+        background: #a0f8c2;
+        color: #093759;
+        font-weight: 700;
+        text-decoration: none;
+      "
+    >
+      ℹ️ About Stick It In
+    </a>
+  </div>
+
+  <!-- Feed styles (local to this page) -->
+  <style>
+    .press-card {
+      background: #fff;
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.05);
+    }
+    .press-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+    .press-msg {
+      font-weight: 800;
+      color: #093759;
+    }
+    .press-meta {
+      font-size: 12px;
+      color: #475569;
+    }
+    .badge {
+      font-size: 12px;
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+    .badge-yellow {
+      background: #fff7d6;
+      color: #9a7b00;
+    }
+    .badge-red {
+      background: #ffe0e0;
+      color: #b91c1c;
+    }
+    .badge-injury {
+      background: #e6f7ff;
+      color: #075985;
+    }
+    .comments {
+      margin-top: 10px;
+      padding-top: 10px;
+      border-top: 1px solid #e5e7eb;
+    }
+    .comment {
+      font-size: 14px;
+      margin: 8px 0;
+    }
+    .comment .author {
+      font-weight: 700;
+      color: #0f172a;
+    }
+    .comment-form {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .comment-form textarea {
+      flex: 1;
+      min-height: 36px;
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #e5e7eb;
+    }
+    .comment-form button {
+      padding: 8px 12px;
+      border-radius: 6px;
+      background: #093759;
+      color: #fff;
+      border: none;
+      font-weight: 700;
+    }
+  </style>
+
+  {% if press_reports %} {% for r in press_reports %}
+  <div class="press-card" id="report-{{ r.id }}">
+    <div class="press-head">
+      <div class="press-msg">{{ r.message }}</div>
+      <div>
+        {% if r.cardType == 'yellow' %}<span class="badge badge-yellow">🟨 Yellow</span>{% endif %}
+        {% if r.cardType == 'red' %}<span class="badge badge-red">🟥 Red</span>{% endif %} {% if
+        r.cardType == 'injury' %}<span class="badge badge-injury">☠️ Injury</span>{% endif %}
+      </div>
+    </div>
+    <div class="press-meta">
+      {{ r.actor_username }} → {{ r.target_username }} · {{ r.ts.strftime('%d/%m at %-I:%M%p') if
+      r.ts }}
+    </div>
+
+    <div class="comments">
+      {% if r.comments %} {% for c in r.comments %}
+      <div class="comment"><span class="author">{{ c.author_username }}</span>: {{ c.text }}</div>
+      {% endfor %} {% else %}
+      <div class="comment" style="color: #64748b">No comments yet.</div>
+      {% endif %}
+
+      <form
+        class="comment-form"
+        method="POST"
+        action="{{ url_for('add_press_comment', report_id=r.id) }}"
+      >
+        <textarea name="text" placeholder="Add a comment…" maxlength="280" required></textarea>
+        <button type="submit">Post</button>
+      </form>
+    </div>
+  </div>
+  {% endfor %} {% else %}
+  <div class="press-card">
+    <div class="press-msg" style="color: #64748b; text-align: center">No press reports yet.</div>
+  </div>
+  {% endif %}
+</div>
+{% endblock %}
