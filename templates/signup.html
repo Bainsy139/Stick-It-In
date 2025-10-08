@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>Sign Up - Stick It In</title>
+    <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            font-family: "Segoe UI", sans-serif;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .background {
+            background: url('{{ url_for("static", filename="images/s5blurred.png") }}') no-repeat center center fixed;
+            background-size: cover;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .signup-box {
+            background-color: rgba(0, 0, 0, 0.65);
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 320px;
+            text-align: center;
+            color: #fff;
+            box-shadow: 0 0 20px rgba(0,0,0,0.7);
+        }
+
+        .signup-box img.logo {
+            width: 80px;
+            margin-bottom: 1rem;
+        }
+
+        .signup-box h2 {
+            margin-bottom: 1.5rem;
+            font-weight: 600;
+        }
+
+        .signup-box label {
+            display: block;
+            text-align: left;
+            margin: 0.5rem 0 0.2rem;
+            font-size: 0.9rem;
+        }
+
+        .signup-box input {
+            width: 100%;
+            padding: 0.6rem;
+            margin-bottom: 1rem;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        .signup-box button {
+            width: 100%;
+            padding: 0.75rem;
+            background-color: #4ea1ff;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.2s ease-in-out;
+        }
+
+        .signup-box button:hover {
+            background-color: #1f78d1;
+        }
+
+        .signup-box a {
+            color: #ffd700;
+            text-decoration: none;
+            display: block;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="background">
+        <div class="signup-box">
+            <img src="{{ url_for('static', filename='images/logoCircle.png') }}" alt="Stick It In Logo" class="logo">
+            <h2>Sign Up</h2>
+            <form method="post">
+                <label for="email">Email:</label>
+                <input type="email" name="email" required>
+
+                <label for="username">Username:</label>
+                <input type="text" name="username" required>
+
+                <label for="password">Password:</label>
+                <input type="password" name="password" required>
+
+                <button type="submit">Sign Up</button>
+            </form>
+            <a href="{{ url_for('login') }}">Already in the league? Log in here</a>
+        </div>
+    </div>
+</body>
+</html>
