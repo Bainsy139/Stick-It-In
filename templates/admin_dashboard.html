@@ -1,0 +1,407 @@
+{% extends "base.html" %} {% block title %}Admin Dashboard – Stick It In{% endblock %} {% block
+content %}
+<div class="admin-container">
+  <h1>🛠 Admin Dashboard</h1>
+
+  <!-- TAB NAVIGATION -->
+  <div style="margin-top: 20px">
+    <button class="tab-button" onclick="showTab('potTools')">💰 Pot & Game Tools</button>
+    <button class="tab-button" onclick="showTab('community')">🔥 Community Insights</button>
+    <button class="tab-button" onclick="showTab('weighted')">⚖️ Weighted Insights</button>
+    <button class="tab-button" onclick="showTab('clubs')">📊 User Overview</button>
+  </div>
+
+  <!-- TAB CONTENT -->
+  <div id="potTools" class="tab-content">
+    <!-- POT ENTRY -->
+    <form
+      id="potForm"
+      method="POST"
+      action="{{ url_for('distribute_pot') }}"
+      style="margin-top: 30px"
+    >
+      <label for="pot">Enter Pot Total (£):</label>
+      <input
+        type="number"
+        step="0.01"
+        name="pot"
+        id="potInput"
+        required
+        style="padding: 6px; margin: 0 12px"
+      />
+      <button type="submit" style="padding: 6px 14px">✅ Finalise & Distribute</button>
+    </form>
+
+    {% if last_pot %}
+    <p style="margin-top: 16px">
+      <strong>Last Pot Value:</strong> £{{ last_pot.value }} (Updated: {{ last_pot.timestamp }})
+    </p>
+    {% endif %}
+
+    <!-- END TIKTOK GAME -->
+    {% if active_game_day %}
+    <form method="POST" action="{{ url_for('end_tiktok_game') }}" style="margin-top: 40px">
+      <h3>🎯 End TikTok Goal Game</h3>
+      <p>Active Game Day: <strong>{{ active_game_day }}</strong></p>
+      <label for="goalCount">Final Goal Count:</label>
+      <input
+        type="number"
+        name="goalCount"
+        id="goalCount"
+        placeholder="e.g. 7"
+        min="1"
+        required
+        style="margin-left: 8px; padding: 6px"
+      />
+      <button type="submit" style="margin-left: 12px; padding: 6px 12px">
+        🔥 End Game & Lock Leaderboard
+      </button>
+    </form>
+
+    <!-- LOCK/UNLOCK -->
+    <div style="margin-top: 20px">
+      <form method="GET" action="{{ url_for('toggle_lock') }}">
+        <button
+          type="submit"
+          style="
+            padding: 8px 14px;
+            background-color: #093759;
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            font-weight: bold;
+          "
+        >
+          {% if locked %}🔓 Unlock TikTok Submissions{% else %}🔒 Lock TikTok Submissions{% endif %}
+        </button>
+      </form>
+    </div>
+    {% endif %}
+    <hr style="margin: 40px 0" />
+
+    <h3>➕ Add TikTok Guesser</h3>
+    <form method="POST" action="{{ url_for('add_tiktok_guess') }}" style="margin-top: 16px">
+      <label for="tt_name">TikTok Name:</label>
+      <input
+        type="text"
+        name="tt_name"
+        id="tt_name"
+        required
+        placeholder="@username"
+        style="margin: 0 8px 8px 8px; padding: 6px; width: 200px"
+      />
+      <label for="tt_guess">Guess:</label>
+      <input
+        type="number"
+        name="tt_guess"
+        id="tt_guess"
+        required
+        placeholder="e.g. 7"
+        min="1"
+        style="margin: 0 8px 8px 8px; padding: 6px; width: 100px"
+      />
+      <button type="submit" style="padding: 6px 12px">➕ Add Guess</button>
+    </form>
+  </div>
+
+  <div id="community" class="tab-content" style="display: none">
+    <!-- TOP PICKS -->
+    {% if hotpicks.topPicks %}
+    <h2 style="margin-top: 30px">🔥 Community Picks (Top 3)</h2>
+    <table class="styled-table">
+      <thead>
+        <tr>
+          <th>Fixture</th>
+          <th>Prediction</th>
+          <th>Confidence %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pick in hotpicks.topPicks %}
+        <tr>
+          <td>{{ pick.team1 }} vs {{ pick.team2 }}</td>
+          <td>{{ pick.prediction }}</td>
+          <td>
+            {# Prefer a precomputed percentage if backend provides it #} {% if pick.percent is
+            defined %} {{ "%.1f"|format(pick.percent) }}% {% elif pick.user_agreement is defined %}
+            {{ "%.1f"|format(pick.user_agreement) }}% {% elif pick.votes is defined %} {# Derive
+            confidence from votes dict: max(option)/sum(options) * 100 #} {% set v = pick.votes %}
+            {% set h = v.get('home', 0) %} {% set d = v.get('draw', 0) %} {% set a = v.get('away',
+            0) %} {% set total = h + d + a %} {% if total > 0 %} {% set top = [h, d, a] | max %}
+            <span title="H:{{h}} D:{{d}} A:{{a}} ({{total}})"
+              >{{ "%.1f"|format((top / total) * 100) }}%</span
+            >
+            {% else %}
+            <span style="color: orange">n/a</span>
+            {% endif %} {% else %}
+            <span style="color: orange">n/a</span>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- BTTS PICKS -->
+    {% if hotpicks.btts %}
+    <h3 style="margin-top: 30px">⚽ BTTS Picks</h3>
+    <table class="styled-table">
+      <thead>
+        <tr>
+          <th>Fixture</th>
+          <th>Yes %</th>
+          <th>No %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pick in hotpicks.btts %} {% if pick.yes_pct is defined and pick.no_pct is defined %}
+        <tr>
+          <td>{{ pick.team1 }} vs {{ pick.team2 }}</td>
+          <td>{{ "%.1f"|format(pick.yes_pct|default(0, true)) }}%</td>
+          <td>{{ "%.1f"|format(pick.no_pct|default(0, true)) }}%</td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="3" style="color: orange">⚠️ Malformed BTTS pick</td>
+        </tr>
+        {% endif %} {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+
+    <!-- POT GROWTH CHART -->
+    {% if pot_history %}
+    <h2 style="margin-top: 40px">📈 Community Pot Growth</h2>
+    <canvas id="potChart" height="120"></canvas>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      new Chart(document.getElementById('potChart').getContext('2d'), {
+        type: 'line',
+        data: {
+          labels: {{ pot_history|map(attribute='week')|list|tojson }},
+          datasets: [{
+            label: 'Total Pot (£)',
+            data: {{ pot_history|map(attribute='value')|list|tojson }},
+            borderColor: '#007bff', backgroundColor: 'rgba(0,123,255,0.1)',
+            tension: 0.3, fill: true, pointRadius: 4
+          }]
+        },
+        options: {
+          scales: {
+            x: { title: { display:true, text:'Week' } },
+            y: { beginAtZero:true, title: { display:true, text:'Pot (£)' } }
+          }
+        }
+      });
+    </script>
+    {% endif %}
+  </div>
+
+  <div id="weighted" class="tab-content" style="display: none">
+    {# Normalise weighted data source from whichever variable the backend provided #} {% set w =
+    None %} {% if hotpicks_weighted is defined and hotpicks_weighted %} {% set w = hotpicks_weighted
+    %} {% elif weightedInsights is defined and weightedInsights %} {% set w = weightedInsights %} {%
+    elif weighted is defined and weighted %} {% set w = weighted %} {% elif hotPicksWeighted is
+    defined and hotPicksWeighted %} {% set w = hotPicksWeighted %} {% endif %} {% if w and
+    (w.topPicks is defined or w.top_picks is defined) %} {% set top_list = w.topPicks if w.topPicks
+    is defined else w.top_picks %}
+    <h2 style="margin-top: 30px">⚖️ Weighted Community Picks (Top 3)</h2>
+    <table class="styled-table">
+      <thead>
+        <tr>
+          <th>Fixture</th>
+          <th>Prediction</th>
+          <th>Confidence %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pick in top_list %}
+        <tr>
+          <td>{{ pick.team1 }} vs {{ pick.team2 }}</td>
+          <td>{{ pick.prediction }}</td>
+          <td>
+            {# Accept percent/user_agreement/wVotes/votes shapes #} {% if pick.percent is defined %}
+            {{ "%.1f"|format(pick.percent) }}% {% elif pick.user_agreement is defined %} {{
+            "%.1f"|format(pick.user_agreement) }}% {% else %} {% set v = pick.wVotes if pick.wVotes
+            is defined else (pick.votes if pick.votes is defined else None) %} {% if v %} {% set h =
+            v.get('home', 0) %} {% set d = v.get('draw', 0) %} {% set a = v.get('away', 0) %} {% set
+            total = h + d + a %} {% if total > 0 %} {% set top = [h, d, a] | max %}
+            <span title="H:{{h}} D:{{d}} A:{{a}} ({{total}})"
+              >{{ "%.1f"|format((top / total) * 100) }}%</span
+            >
+            {% else %}
+            <span style="color: orange">n/a</span>
+            {% endif %} {% else %}
+            <span style="color: orange">n/a</span>
+            {% endif %} {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% else %} {% if not w %}
+    <details style="margin-top: 8px; color: #666">
+      <summary>Debug: weighted context</summary>
+      <div style="font-size: 12px; line-height: 1.4">
+        hotpicks_weighted defined?
+        <strong>{{ 'yes' if hotpicks_weighted is defined else 'no' }}</strong><br />
+        weightedInsights defined?
+        <strong>{{ 'yes' if weightedInsights is defined else 'no' }}</strong><br />
+        weighted defined? <strong>{{ 'yes' if weighted is defined else 'no' }}</strong><br />
+        hotPicksWeighted defined?
+        <strong>{{ 'yes' if hotPicksWeighted is defined else 'no' }}</strong>
+      </div>
+    </details>
+    {% endif %}
+    <p style="margin-top: 12px; color: #666">No weighted picks available yet.</p>
+    {% endif %} {% if w and (w.btts is defined) %}
+    <h3 style="margin-top: 30px">⚽ BTTS Picks (Weighted)</h3>
+    <table class="styled-table">
+      <thead>
+        <tr>
+          <th>Fixture</th>
+          <th>Yes %</th>
+          <th>No %</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for pick in w.btts %} {% set has_pct = pick.yes_pct is defined and pick.no_pct is defined
+        %} {% set has_votes = pick.wVotes is defined or pick.votes is defined or pick.yes is defined
+        or pick.no is defined %}
+        <tr>
+          <td>{{ pick.team1 }} vs {{ pick.team2 }}</td>
+          {% if has_pct %}
+          <td>{{ "%.1f"|format(pick.yes_pct|default(0, true)) }}%</td>
+          <td>{{ "%.1f"|format(pick.no_pct|default(0, true)) }}%</td>
+          {% elif has_votes %} {% set v = pick.wVotes if pick.wVotes is defined else (pick.votes if
+          pick.votes is defined else {'yes': pick.yes|default(0,true), 'no':
+          pick.no|default(0,true)}) %} {% set y = v.get('yes', 0) %} {% set n = v.get('no', 0) %} {%
+          set total = (y + n) %} {% if total > 0 %}
+          <td>{{ "%.1f"|format((y / total) * 100) }}%</td>
+          <td>{{ "%.1f"|format((n / total) * 100) }}%</td>
+          {% else %}
+          <td colspan="2" style="color: orange">n/a</td>
+          {% endif %} {% else %}
+          <td colspan="2" style="color: orange">⚠️ Malformed BTTS pick</td>
+          {% endif %}
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  <div id="clubs" class="tab-content" style="display: none">
+    {% if users %}
+    <h2 style="margin-top: 30px">📊 User Overview</h2>
+    <table class="styled-table">
+      <thead>
+        <tr>
+          <th>Club</th>
+          <th>Manager</th>
+          <th>Preds</th>
+          <th>BTTS</th>
+          <th>Team Value</th>
+          <th>⚠️ Strikes</th>
+          <th>📋 Status</th>
+          <th>💾</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for user in users %}
+        <tr>
+          <form method="POST" action="{{ url_for('update_user', user_id=user.id) }}">
+            <td style="display: flex; align-items: center; gap: 6px; justify-content: center">
+              {{ user.username or 'N/A' }}
+            </td>
+            <td>{{ user.manager }}</td>
+            <td>{{ user.totalPredictions }}</td>
+            <td>{{ user.totalBTTS }}</td>
+            <td>£{{ '%.2f'|format(user.teamValue|float) }}</td>
+            <td>
+              <input
+                type="number"
+                name="strikes"
+                value="{{ user.strikes or 0 }}"
+                min="0"
+                max="3"
+                style="width: 60px"
+              />
+            </td>
+            <td>
+              <input
+                type="text"
+                name="status"
+                value="{{ user.status or 'Active' }}"
+                style="width: 120px"
+              />
+            </td>
+            <td><button type="submit">Save</button></td>
+          </form>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+    {% endif %}
+  </div>
+
+  <!-- TABLE + TABS STYLING -->
+  <style>
+    .tab-button {
+      padding: 10px 18px;
+      margin-right: 10px;
+      background-color: #eee;
+      border: none;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .tab-button:hover {
+      background-color: #ddd;
+    }
+    .tab-content {
+      display: none;
+      margin-top: 20px;
+    }
+
+    .styled-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+      margin-top: 10px;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+    }
+    .styled-table thead {
+      background: #093759;
+      color: #fff;
+    }
+    .styled-table th,
+    .styled-table td {
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .styled-table tbody tr:nth-child(even) {
+      background: #f7f9fc;
+    }
+    .admin-container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+  </style>
+
+  <!-- TABS SCRIPT -->
+  <script>
+    function showTab(tabId) {
+      const tabs = document.querySelectorAll('.tab-content');
+      tabs.forEach((tab) => (tab.style.display = 'none'));
+      document.getElementById(tabId).style.display = 'block';
+    }
+    // Show the first tab by default
+    showTab('potTools');
+  </script>
+</div>
+{% endblock %}
