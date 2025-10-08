@@ -1,0 +1,1042 @@
+{% extends "base.html" %} {% block title %}Game Entry – Stick It In{% endblock %} {% block content
+%}
+<style>
+  /* Lock + dim any card that’s fully predicted (outcome + BTTS) */
+  .squircle-card.predicted {
+    opacity: 0.55;
+    filter: grayscale(0.25);
+  }
+  /* Dim but keep interactive when only one pick is set */
+  .squircle-card.partial {
+    opacity: 0.85;
+    filter: grayscale(0.1);
+  }
+  .squircle-card.predicted .prediction-btn,
+  .squircle-card.predicted .btts-btn,
+  .squircle-card.predicted .expand-btn {
+    pointer-events: none;
+    cursor: not-allowed;
+    opacity: 0.65;
+  }
+
+  /* Visual “selected” state so users see what they clicked */
+  .prediction-btn.selected,
+  .btts-btn.selected {
+    border-color: #0052cc;
+    background: #e8f1ff;
+    box-shadow: 0 0 0 2px rgba(0, 82, 204, 0.15) inset;
+  }
+
+  /* --- Review strip + mini-list styles --- */
+  .review-strip {
+    position: sticky;
+    top: 72px; /* sits just below the sticky header */
+    z-index: 999;
+    background: #ffffff;
+    border-bottom: 1px solid #e5e7eb;
+    padding: 10px 16px;
+  }
+  .review-strip .counts {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    font-weight: 600;
+    color: #093759;
+  }
+  .review-strip .mini-list {
+    margin-top: 8px;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 6px;
+    max-height: 140px; /* keep strip compact */
+    overflow-y: auto; /* scroll inside the strip */
+    padding-bottom: 0;
+  }
+  .review-strip .mini-list.collapsed {
+    display: none;
+  }
+  .review-strip .counts {
+    gap: 10px;
+  }
+  .mini-toggle {
+    margin-left: auto;
+    border: 1px solid #cbd5e1;
+    background: #ffffff;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+  .pill {
+    border: 1px solid #cbd5e1;
+    border-radius: 999px;
+    padding: 6px 12px;
+    background: #f8fafc;
+    font-size: 0.9rem;
+    white-space: nowrap;
+    width: 100%;
+    box-sizing: border-box;
+  }
+  .pill.result {
+    border-color: #93c5fd;
+    background: #eff6ff;
+  }
+  .pill.btts {
+    border-color: #fbbf24;
+    background: #fffbeb;
+  }
+
+  /* Review pane shown when both quotas are met */
+  #reviewPane {
+    display: none;
+    max-width: 1000px;
+    margin: 16px auto 80px;
+    background: #ffffff;
+    border: 1px solid #e5e7eb;
+    border-radius: 12px;
+    padding: 16px;
+  }
+  #reviewPane h3 {
+    margin: 6px 0 12px;
+  }
+  .review-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .review-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    border: 1px solid #e5e7eb;
+    border-radius: 10px;
+    padding: 8px 10px;
+    background: #f9fafb;
+  }
+  .review-actions button {
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    padding: 4px 8px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+</style>
+
+<div
+  class="sticky-header"
+  style="
+    position: sticky;
+    top: 0;
+    background-color: #093759;
+    z-index: 1000;
+    text-align: center;
+    padding: 12px;
+    color: white;
+  "
+>
+  <h1 style="margin: 0; font-size: 2rem">Game Entry</h1>
+  <p style="margin: 6px 0 0; font-size: 1rem">
+    You have <strong id="predictionCount">{{ prediction_count }}</strong> predictions and
+    <strong id="bttsCount">{{ btts_count }}</strong> BTTS predictions left this week.
+  </p>
+</div>
+
+<div id="reviewStrip" class="review-strip">
+  <div class="counts">
+    <span>Selected:</span>
+    <span
+      >Result <strong id="selectedResultCount">0</strong>/<strong id="needResultCount"
+        >{{ prediction_count }}</strong
+      ></span
+    >
+    <span>|</span>
+    <span
+      >BTTS <strong id="selectedBTTSCount">0</strong>/<strong id="needBTTSCount"
+        >{{ btts_count }}</strong
+      ></span
+    >
+    <button id="toggleMiniList" class="mini-toggle" type="button" aria-expanded="false">
+      Show picks
+    </button>
+  </div>
+  <div id="miniList" class="mini-list collapsed" aria-label="Your picks mini list"></div>
+</div>
+
+<!-- Filters UI -->
+<section
+  id="filters"
+  class="filters"
+  style="padding: 12px 30px; max-width: 1200px; margin: 10px auto 0"
+>
+  <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: center">
+    <input
+      id="teamSearch"
+      type="text"
+      placeholder="Search teams…"
+      aria-label="Search teams"
+      style="
+        flex: 1;
+        min-width: 220px;
+        padding: 8px 10px;
+        border: 1px solid #cbd5e1;
+        border-radius: 8px;
+      "
+    />
+    <label style="display: flex; align-items: center; gap: 6px; font-size: 0.95rem">
+      <input type="checkbox" id="chkHideStarted" /> Hide started/finished
+    </label>
+  </div>
+
+  <details
+    style="
+      margin-top: 8px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 8px;
+      background: #ffffff;
+    "
+  >
+    <summary style="cursor: pointer; font-weight: 600">Filter by league</summary>
+    <div
+      style="
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 10px;
+        margin: 8px 0;
+        flex-wrap: wrap;
+      "
+    >
+      <label style="font-weight: 600">
+        <input type="checkbox" id="chkAll" checked /> Select all
+      </label>
+      <div class="presets" style="display: flex; gap: 6px; flex-wrap: wrap">
+        <button
+          type="button"
+          class="presetBtn"
+          data-preset="ENG"
+          style="padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer"
+        >
+          England
+        </button>
+        <button
+          type="button"
+          class="presetBtn"
+          data-preset="SCO"
+          style="padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer"
+        >
+          Scotland
+        </button>
+        <button
+          type="button"
+          class="presetBtn"
+          data-preset="UEFA"
+          style="padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer"
+        >
+          UEFA
+        </button>
+        <button
+          type="button"
+          class="presetBtn"
+          data-preset="INT"
+          style="padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer"
+        >
+          International
+        </button>
+        <button
+          type="button"
+          class="presetBtn"
+          data-preset="ALL"
+          style="padding: 6px 10px; border: 1px solid #e5e7eb; border-radius: 8px; cursor: pointer"
+        >
+          All
+        </button>
+      </div>
+    </div>
+
+    <div
+      id="leagueChecks"
+      style="
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+        gap: 6px 14px;
+      "
+    >
+      <!-- Hard-coded league checkboxes for simplicity -->
+      <label><input type="checkbox" class="leagueChk" value="39" checked /> Premier League</label>
+      <label><input type="checkbox" class="leagueChk" value="40" checked /> Championship</label>
+      <label><input type="checkbox" class="leagueChk" value="41" checked /> League One</label>
+      <label><input type="checkbox" class="leagueChk" value="42" checked /> League Two</label>
+      <label><input type="checkbox" class="leagueChk" value="45" checked /> FA Cup</label>
+      <label><input type="checkbox" class="leagueChk" value="46" checked /> EFL Trophy</label>
+      <label><input type="checkbox" class="leagueChk" value="47" checked /> FA Trophy</label>
+      <label
+        ><input type="checkbox" class="leagueChk" value="48" checked /> League Cup (EFL Cup)</label
+      >
+      <label
+        ><input type="checkbox" class="leagueChk" value="179" checked /> Scottish Premiership</label
+      >
+      <label
+        ><input type="checkbox" class="leagueChk" value="180" checked /> Scottish
+        Championship</label
+      >
+      <label><input type="checkbox" class="leagueChk" value="181" checked /> Scottish FA Cup</label>
+      <label
+        ><input type="checkbox" class="leagueChk" value="182" checked /> Scottish Challenge
+        Cup</label
+      >
+      <label
+        ><input type="checkbox" class="leagueChk" value="183" checked /> Scottish League One</label
+      >
+      <label
+        ><input type="checkbox" class="leagueChk" value="184" checked /> Scottish League Two</label
+      >
+      <label
+        ><input type="checkbox" class="leagueChk" value="185" checked /> Scottish League Cup</label
+      >
+      <label><input type="checkbox" class="leagueChk" value="1" checked /> FIFA World Cup</label>
+      <label
+        ><input type="checkbox" class="leagueChk" value="2" checked /> UEFA Champions League</label
+      >
+      <label
+        ><input type="checkbox" class="leagueChk" value="3" checked /> UEFA Europa League</label
+      >
+    </div>
+  </details>
+</section>
+
+<div
+  class="grid"
+  style="
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px;
+    padding: 30px;
+    max-width: 1200px;
+    margin: auto;
+  "
+>
+  {% for fixture in fixtures %}
+  <div
+    id="card-{{ fixture.fixture_id }}"
+    class="squircle-card {% if fixture.predicted %}predicted{% endif %}"
+    data-fixture-id="{{ fixture.fixture_id }}"
+    data-team1="{{ fixture.team1 }}"
+    data-team2="{{ fixture.team2 }}"
+    data-venue="{{ fixture.venue }}"
+    data-date="{{ fixture.date }}"
+    data-league="{{ fixture.league_id if fixture.league_id is defined else '' }}"
+    data-home="{{ (fixture.team1 | lower) if fixture.team1 is defined else '' }}"
+    data-away="{{ (fixture.team2 | lower) if fixture.team2 is defined else '' }}"
+    data-ts="{{ fixture.ts or '' }}"
+    style="
+      background-color: white;
+      border-radius: 16px;
+      border: 2px solid #0052cc;
+      padding: 20px;
+      text-align: center;
+    "
+  >
+    <h4>{{ fixture.team1 }} vs {{ fixture.team2 }}</h4>
+    {% set league_display = (fixture.league_name if fixture.league_name is defined else
+    (fixture.league_id if fixture.league_id is defined else '')) %} {% if league_display %}
+    <div class="league-pill" style="font-size: 0.8rem; opacity: 0.8; margin-top: 4px">
+      {{ league_display }}
+    </div>
+    {% endif %}
+    <p class="fixture-meta" style="font-size: 0.9rem; margin: 8px 0 14px; color: #555">
+      📍 {{ fixture.venue }}<br />🕒 {{ fixture.date }}
+    </p>
+    <button
+      class="expand-btn"
+      style="
+        background-color: #0052cc;
+        color: white;
+        padding: 6px 14px;
+        border: none;
+        border-radius: 8px;
+        font-weight: bold;
+        cursor: pointer;
+      "
+    >
+      Predict
+    </button>
+
+    <div
+      class="details"
+      style="
+        display: none;
+        margin-top: 15px;
+        text-align: left;
+        font-size: 0.9rem;
+        background-color: #eef3f9;
+        border-radius: 12px;
+        padding: 12px;
+      "
+    >
+      <div class="btts-toggle" style="margin-top: 16px; text-align: center">
+        <span style="display: block; margin-bottom: 6px; font-weight: bold; color: #444"
+          >BTTS?</span
+        >
+        <div class="btts-buttons" style="display: flex; gap: 10px; justify-content: center">
+          <button
+            class="btts-btn"
+            data-fixture-id="{{ fixture.fixture_id }}"
+            data-btts="Yes"
+            style="
+              padding: 6px 12px;
+              border-radius: 8px;
+              border: 2px solid #ccc;
+              background-color: #fafafa;
+              font-weight: bold;
+              cursor: pointer;
+            "
+          >
+            Yes
+          </button>
+          <button
+            class="btts-btn"
+            data-fixture-id="{{ fixture.fixture_id }}"
+            data-btts="No"
+            style="
+              padding: 6px 12px;
+              border-radius: 8px;
+              border: 2px solid #ccc;
+              background-color: #fafafa;
+              font-weight: bold;
+              cursor: pointer;
+            "
+          >
+            No
+          </button>
+        </div>
+      </div>
+
+      <div
+        class="prediction-bar"
+        style="
+          display: flex;
+          overflow: hidden;
+          border-radius: 8px;
+          margin: 10px 0;
+          font-weight: 600;
+        "
+      >
+        <div
+          class="home-bar"
+          style="background-color: #c8e6c9; width: {{ fixture.home_win_prob }}%; text-align: center; font-size: 0.8rem; color: #222; padding: 4px 0;"
+        >
+          {{ fixture.home_win_prob }}% Home
+        </div>
+        <div
+          class="draw-bar"
+          style="background-color: #ffe0b2; width: {{ fixture.draw_prob }}%; text-align: center; font-size: 0.8rem; color: #222; padding: 4px 0;"
+        >
+          {{ fixture.draw_prob }}% Draw
+        </div>
+        <div
+          class="away-bar"
+          style="background-color: #ffcdd2; width: {{ fixture.away_win_prob }}%; text-align: center; font-size: 0.8rem; color: #222; padding: 4px 0;"
+        >
+          {{ fixture.away_win_prob }}% Away
+        </div>
+      </div>
+
+      <div
+        class="prediction-buttons"
+        style="display: flex; justify-content: space-between; gap: 10px; margin-top: 10px"
+      >
+        <button
+          class="prediction-btn"
+          data-fixture-id="{{ fixture.fixture_id }}"
+          data-prediction="Home"
+          style="
+            flex: 1;
+            padding: 8px;
+            border-radius: 8px;
+            border: 2px solid #ccc;
+            font-weight: bold;
+            cursor: pointer;
+            background-color: #fafafa;
+          "
+        >
+          Home
+        </button>
+        <button
+          class="prediction-btn"
+          data-fixture-id="{{ fixture.fixture_id }}"
+          data-prediction="Draw"
+          style="
+            flex: 1;
+            padding: 8px;
+            border-radius: 8px;
+            border: 2px solid #ccc;
+            font-weight: bold;
+            cursor: pointer;
+            background-color: #fafafa;
+          "
+        >
+          Draw
+        </button>
+        <button
+          class="prediction-btn"
+          data-fixture-id="{{ fixture.fixture_id }}"
+          data-prediction="Away"
+          style="
+            flex: 1;
+            padding: 8px;
+            border-radius: 8px;
+            border: 2px solid #ccc;
+            font-weight: bold;
+            cursor: pointer;
+            background-color: #fafafa;
+          "
+        >
+          Away
+        </button>
+      </div>
+      <div style="text-align: center; margin-top: 10px">
+        <button
+          class="clear-btn"
+          data-fixture-id="{{ fixture.fixture_id }}"
+          style="
+            padding: 6px 12px;
+            border-radius: 8px;
+            border: 2px solid #ccc;
+            background: #fff;
+            cursor: pointer;
+            font-size: 0.85rem;
+          "
+        >
+          Clear selection
+        </button>
+      </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+
+<section id="reviewPane" aria-label="Review your selections">
+  <h3>Review your selections</h3>
+  <p style="margin-top: 0; color: #555">
+    Double-check before submitting. You can edit or remove any pick.
+  </p>
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px">
+    <div>
+      <h4 style="margin: 4px 0">Results (10)</h4>
+      <div id="reviewResults" class="review-list"></div>
+    </div>
+    <div>
+      <h4 style="margin: 4px 0">BTTS (10)</h4>
+      <div id="reviewBTTS" class="review-list"></div>
+    </div>
+  </div>
+  <div style="margin-top: 12px; text-align: right">
+    <button id="backToEditingBtn" class="pill" type="button">⬅️ Back to editing</button>
+  </div>
+</section>
+
+<div class="submit-wrapper" style="position: fixed; bottom: 20px; width: 100%; text-align: center">
+  <button
+    onclick="submitAllPredictions()"
+    class="submit-all-btn"
+    disabled
+    style="
+      background-color: #ff5722;
+      color: white;
+      font-weight: bold;
+      font-size: 16px;
+      padding: 12px 24px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      box-shadow: 0 0 6px rgba(255, 87, 34, 0.5);
+    "
+  >
+    ✅ Submit All Predictions
+  </button>
+</div>
+{% endblock %} {% block scripts %}
+<script>
+  // League groups used by preset buttons
+  const LEAGUE_GROUPS = {
+    39: 'ENG', // Premier League
+    40: 'ENG', // Championship
+    41: 'ENG', // League One
+    42: 'ENG', // League Two
+    45: 'ENGCUP',
+    46: 'ENGCUP',
+    47: 'ENGCUP',
+    48: 'ENGCUP',
+    179: 'SCO',
+    180: 'SCO',
+    181: 'SCOCUP',
+    182: 'SCOCUP',
+    183: 'SCO',
+    184: 'SCO',
+    185: 'SCOCUP',
+    1: 'INT',
+    2: 'UEFA',
+    3: 'UEFA',
+  };
+
+  document.addEventListener('DOMContentLoaded', () => {
+    const FIXTURE_MAP = {}; // fixtureID -> {team1, team2, title}
+    const needResult = parseInt(document.getElementById('needResultCount').textContent) || 10;
+    const needBTTS = parseInt(document.getElementById('needBTTSCount').textContent) || 10;
+
+    document.querySelectorAll('.squircle-card').forEach((card) => {
+      const id = card.dataset.fixtureId;
+      const t1 = card.dataset.team1 || 'Unknown';
+      const t2 = card.dataset.team2 || 'Unknown';
+      if (id) {
+        FIXTURE_MAP[id] = { team1: t1, team2: t2, title: `${t1} vs ${t2}` };
+      }
+    });
+
+    function updateCardState(card) {
+      if (!card) return;
+      const hasOutcome = !!card.querySelector('.prediction-btn.selected');
+      const hasBTTS = !!card.querySelector('.btts-btn.selected');
+
+      // Reset classes each time
+      card.classList.remove('partial');
+      card.classList.remove('predicted');
+
+      if (hasOutcome && hasBTTS) {
+        // fully locked
+        card.classList.add('predicted');
+        card.querySelectorAll('.prediction-btn, .btts-btn').forEach((btn) => {
+          btn.setAttribute('aria-disabled', 'true');
+          btn.disabled = true;
+        });
+      } else if (hasOutcome || hasBTTS) {
+        // only one side chosen → dim but keep interactive
+        card.classList.add('partial');
+        card.querySelectorAll('.prediction-btn, .btts-btn').forEach((btn) => {
+          btn.removeAttribute('aria-disabled');
+          btn.disabled = false;
+        });
+      } else {
+        // nothing chosen → fully interactive
+        card.querySelectorAll('.prediction-btn, .btts-btn').forEach((btn) => {
+          btn.removeAttribute('aria-disabled');
+          btn.disabled = false;
+        });
+      }
+    }
+
+    function buildMiniList() {
+      const mini = document.getElementById('miniList');
+      if (!mini) return;
+      mini.innerHTML = '';
+      // Results pills
+      Object.entries(selectedPredictions).forEach(([fid, pick]) => {
+        const meta = FIXTURE_MAP[fid] || { title: fid };
+        const el = document.createElement('div');
+        el.className = 'pill result';
+        el.textContent = `${pick}: ${meta.title}`;
+        mini.appendChild(el);
+      });
+      // BTTS pills
+      Object.entries(selectedBTTS).forEach(([fid, pick]) => {
+        const meta = FIXTURE_MAP[fid] || { title: fid };
+        const el = document.createElement('div');
+        el.className = 'pill btts';
+        el.textContent = `BTTS ${pick}: ${meta.title}`;
+        mini.appendChild(el);
+      });
+    }
+
+    function populateReview() {
+      const resBox = document.getElementById('reviewResults');
+      const bttsBox = document.getElementById('reviewBTTS');
+      if (!resBox || !bttsBox) return;
+      resBox.innerHTML = '';
+      bttsBox.innerHTML = '';
+
+      Object.entries(selectedPredictions).forEach(([fid, pick]) => {
+        const meta = FIXTURE_MAP[fid] || { team1: '?', team2: '?' };
+        const row = document.createElement('div');
+        row.className = 'review-row';
+        row.innerHTML = `
+          <div><strong>${meta.team1} vs ${meta.team2}</strong><br><small>Result: ${pick}</small></div>
+          <div class="review-actions">
+            <button type="button" data-fid="${fid}" data-kind="result" class="edit-btn">Edit</button>
+            <button type="button" data-fid="${fid}" data-kind="result" class="remove-btn">Remove</button>
+          </div>`;
+        resBox.appendChild(row);
+      });
+
+      Object.entries(selectedBTTS).forEach(([fid, pick]) => {
+        const meta = FIXTURE_MAP[fid] || { team1: '?', team2: '?' };
+        const row = document.createElement('div');
+        row.className = 'review-row';
+        row.innerHTML = `
+          <div><strong>${meta.team1} vs ${meta.team2}</strong><br><small>BTTS: ${pick}</small></div>
+          <div class="review-actions">
+            <button type="button" data-fid="${fid}" data-kind="btts" class="edit-btn">Edit</button>
+            <button type="button" data-fid="${fid}" data-kind="btts" class="remove-btn">Remove</button>
+          </div>`;
+        bttsBox.appendChild(row);
+      });
+
+      // Wire edit/remove actions inside review pane
+      document.querySelectorAll('#reviewPane .edit-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const fid = btn.getAttribute('data-fid');
+          const card = document.getElementById(`card-${fid}`);
+          if (card) {
+            document.querySelector('.grid').style.display = '';
+            document.getElementById('reviewPane').style.display = 'none';
+            const details = card.querySelector('.details');
+            if (details && details.style.display !== 'block') details.style.display = 'block';
+            card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        });
+      });
+      document.querySelectorAll('#reviewPane .remove-btn').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          const fid = btn.getAttribute('data-fid');
+          const kind = btn.getAttribute('data-kind');
+          if (kind === 'result') {
+            delete selectedPredictions[fid];
+            const card = document.getElementById(`card-${fid}`);
+            if (card)
+              card
+                .querySelectorAll('.prediction-btn')
+                .forEach((b) => b.classList.remove('selected'));
+          } else {
+            delete selectedBTTS[fid];
+            const card = document.getElementById(`card-${fid}`);
+            if (card)
+              card.querySelectorAll('.btts-btn').forEach((b) => b.classList.remove('selected'));
+          }
+          const card = document.getElementById(`card-${fid}`);
+          if (card) card.classList.remove('partial', 'predicted');
+          updateCounters();
+        });
+      });
+    }
+
+    function updateCounters() {
+      const r = Object.keys(selectedPredictions).length;
+      const b = Object.keys(selectedBTTS).length;
+      const rEl = document.getElementById('selectedResultCount');
+      const bEl = document.getElementById('selectedBTTSCount');
+      if (rEl) rEl.textContent = r;
+      if (bEl) bEl.textContent = b;
+
+      buildMiniList();
+
+      const grid = document.querySelector('.grid');
+      const review = document.getElementById('reviewPane');
+      const submit = document.querySelector('.submit-all-btn');
+
+      // Always keep submit button enabled
+      if (submit) submit.disabled = false;
+
+      // Keep showing grid, only toggle review manually
+      if (grid) grid.style.display = '';
+      if (review) review.style.display = 'none';
+    }
+
+    document.querySelectorAll('.expand-btn').forEach((button) => {
+      button.addEventListener('click', () => {
+        const card = button.closest('.squircle-card');
+        const details = card.querySelector('.details');
+        details.style.display = details.style.display === 'block' ? 'none' : 'block';
+      });
+    });
+
+    document.querySelectorAll('.prediction-btn').forEach((button) => {
+      button.addEventListener('click', function () {
+        const fixtureID = this.dataset.fixtureId;
+        selectedPredictions[fixtureID] = this.dataset.prediction;
+
+        const parent = this.parentElement; // .prediction-buttons
+        const card = this.closest('.squircle-card');
+
+        parent
+          .querySelectorAll('.prediction-btn')
+          .forEach((btn) => btn.classList.remove('selected'));
+        this.classList.add('selected');
+
+        // evaluate whether the card should now be locked/greyed
+        updateCardState(card);
+        updateCounters();
+      });
+    });
+
+    document.querySelectorAll('.btts-btn').forEach((button) => {
+      button.addEventListener('click', function () {
+        const fixtureID = this.dataset.fixtureId;
+        selectedBTTS[fixtureID] = this.dataset.btts;
+
+        const parent = this.parentElement; // .btts-buttons
+        const card = this.closest('.squircle-card');
+
+        parent.querySelectorAll('.btts-btn').forEach((btn) => btn.classList.remove('selected'));
+        this.classList.add('selected');
+
+        // evaluate whether the card should now be locked/greyed
+        updateCardState(card);
+        updateCounters();
+      });
+    });
+
+    document.querySelectorAll('.clear-btn').forEach((button) => {
+      button.addEventListener('click', function () {
+        const fixtureID = this.dataset.fixtureId;
+
+        // remove any stored selections for this fixture
+        delete selectedPredictions[fixtureID];
+        delete selectedBTTS[fixtureID];
+
+        const card = this.closest('.squircle-card');
+
+        // reset visual selection state
+        card.querySelectorAll('.prediction-btn, .btts-btn').forEach((btn) => {
+          btn.classList.remove('selected');
+          btn.removeAttribute('aria-disabled');
+          btn.disabled = false;
+        });
+
+        // remove dim/locked states
+        card.classList.remove('partial', 'predicted');
+        updateCounters();
+      });
+    });
+
+    const backBtn = document.getElementById('backToEditingBtn');
+    if (backBtn)
+      backBtn.addEventListener('click', () => {
+        const grid = document.querySelector('.grid');
+        const review = document.getElementById('reviewPane');
+        if (grid) grid.style.display = '';
+        if (review) review.style.display = 'none';
+        const submit = document.querySelector('.submit-all-btn');
+        if (submit) submit.disabled = true;
+      });
+
+    // prime the strip on load
+    updateCounters();
+
+    // Mini-list show/hide toggle
+    const mini = document.getElementById('miniList');
+    const toggleBtn = document.getElementById('toggleMiniList');
+    if (toggleBtn && mini) {
+      const syncToggleLabel = () => {
+        const collapsed = mini.classList.contains('collapsed');
+        toggleBtn.textContent = collapsed ? 'Show picks' : 'Hide picks';
+        toggleBtn.setAttribute('aria-expanded', (!collapsed).toString());
+      };
+      toggleBtn.addEventListener('click', () => {
+        mini.classList.toggle('collapsed');
+        syncToggleLabel();
+      });
+      // initial label
+      syncToggleLabel();
+    }
+  });
+
+  // --- Filtering ---
+  (function () {
+    const grid = document.querySelector('.grid, .fixtures-grid') || document;
+    const cards = Array.from(document.querySelectorAll('.squircle-card'));
+    const leagueChecks = Array.from(document.querySelectorAll('.leagueChk'));
+    const chkAll = document.getElementById('chkAll');
+    const search = document.getElementById('teamSearch');
+    const presetBtns = Array.from(document.querySelectorAll('.presetBtn'));
+    const hideStarted = document.getElementById('chkHideStarted');
+
+    // Fallback: if fixtures don't carry league_id, infer it from the displayed league name
+    const NAME_TO_ID = {
+      'premier league': '39',
+      championship: '40',
+      'league one': '41',
+      'league two': '42',
+      'fa cup': '45',
+      'efl trophy': '46',
+      'fa trophy': '47',
+      'league cup (efl cup)': '48',
+      'scottish premiership': '179',
+      'scottish championship': '180',
+      'scottish fa cup': '181',
+      'scottish challenge cup': '182',
+      'scottish league one': '183',
+      'scottish league two': '184',
+      'scottish league cup': '185',
+      'fifa world cup': '1',
+      'uefa champions league': '2',
+      'uefa europa league': '3',
+    };
+
+    // Try to backfill missing data-league using the league pill text
+    cards.forEach((card) => {
+      if (!card.dataset.league) {
+        const pill = card.querySelector('.league-pill');
+        if (pill) {
+          const key = pill.textContent.trim().toLowerCase();
+          if (NAME_TO_ID[key]) {
+            card.dataset.league = NAME_TO_ID[key];
+          }
+        }
+      }
+    });
+
+    // restore from localStorage
+    const saved = JSON.parse(localStorage.getItem('siiFilters') || '{}');
+    if (saved.leagues && saved.leagues.length) {
+      leagueChecks.forEach((chk) => (chk.checked = saved.leagues.includes(chk.value)));
+    }
+    if (saved.search) search.value = saved.search;
+    if (typeof saved.hideStarted === 'boolean') hideStarted.checked = saved.hideStarted;
+    chkAll.checked = leagueChecks.every((c) => c.checked);
+
+    function currentLeagues() {
+      return leagueChecks.filter((c) => c.checked).map((c) => c.value);
+    }
+
+    function fixtureStarted(card) {
+      const ts = Number(card.dataset.ts || NaN);
+      if (Number.isFinite(ts)) return Date.now() >= ts;
+      const raw = card.dataset.date || '';
+      const t = Date.parse(raw);
+      if (isNaN(t)) return false;
+      return Date.now() >= t;
+    }
+
+    function applyFilters() {
+      const q = (search.value || '').trim().toLowerCase();
+      const allowed = new Set(currentLeagues());
+      cards.forEach((card) => {
+        const leagueVal = (card.dataset.league || '').toString();
+        const inLeague = !allowed.size ? true : allowed.has(leagueVal);
+        const textHit =
+          !q || (card.dataset.home || '').includes(q) || (card.dataset.away || '').includes(q);
+        const startedBlock = hideStarted.checked ? !fixtureStarted(card) : true;
+        card.style.display = inLeague && textHit && startedBlock ? '' : 'none';
+      });
+      localStorage.setItem(
+        'siiFilters',
+        JSON.stringify({
+          leagues: Array.from(allowed),
+          search: q,
+          hideStarted: hideStarted.checked,
+        })
+      );
+    }
+
+    leagueChecks.forEach((chk) =>
+      chk.addEventListener('change', () => {
+        chkAll.checked = leagueChecks.every((c) => c.checked);
+        applyFilters();
+      })
+    );
+
+    leagueChecks.forEach((chk) =>
+      chk.addEventListener('input', () => {
+        chkAll.checked = leagueChecks.every((c) => c.checked);
+        applyFilters();
+      })
+    );
+
+    if (chkAll)
+      chkAll.addEventListener('change', () => {
+        leagueChecks.forEach((c) => (c.checked = chkAll.checked));
+        applyFilters();
+      });
+
+    presetBtns.forEach((btn) =>
+      btn.addEventListener('click', () => {
+        const p = btn.dataset.preset;
+        if (p === 'ALL') {
+          leagueChecks.forEach((c) => (c.checked = true));
+        } else {
+          leagueChecks.forEach((c) => {
+            const group = LEAGUE_GROUPS[c.value] || '';
+            c.checked = group.startsWith(p);
+          });
+        }
+        chkAll.checked = leagueChecks.every((c) => c.checked);
+        applyFilters();
+      })
+    );
+
+    if (search) search.addEventListener('input', applyFilters);
+    if (hideStarted) hideStarted.addEventListener('change', applyFilters);
+
+    // initial run
+    applyFilters();
+  })();
+
+  const selectedPredictions = {};
+  const selectedBTTS = {};
+
+  async function submitAllPredictions() {
+    const allFixtureIDs = new Set([
+      ...Object.keys(selectedPredictions),
+      ...Object.keys(selectedBTTS),
+    ]);
+
+    for (const fixtureID of allFixtureIDs) {
+      const prediction = selectedPredictions[fixtureID] || null;
+      const btts = selectedBTTS[fixtureID] || null;
+
+      if (!prediction && !btts) continue;
+
+      const fixtureElement = document.querySelector(`[data-fixture-id="${fixtureID}"]`);
+      const team1 = fixtureElement.dataset.team1;
+      const team2 = fixtureElement.dataset.team2;
+      const venue = fixtureElement.dataset.venue;
+      const date = fixtureElement.dataset.date;
+
+      try {
+        const response = await fetch('/submit_prediction', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fixtureID,
+            prediction,
+            btts,
+            team1,
+            team2,
+            venue,
+            date,
+          }),
+        });
+
+        const result = await response.json();
+
+        if (result.error) {
+          alert(`❌ ${result.error}`);
+        } else {
+          if (prediction) {
+            const countElement = document.getElementById('predictionCount');
+            if (countElement) {
+              const currentCount = parseInt(countElement.innerText);
+              countElement.innerText = Math.max(currentCount - 1, 0);
+            }
+          }
+          if (btts) {
+            const bttsElement = document.getElementById('bttsCount');
+            if (bttsElement) {
+              const currentBTTS = parseInt(bttsElement.innerText);
+              bttsElement.innerText = Math.max(currentBTTS - 1, 0);
+            }
+          }
+        }
+      } catch (err) {
+        console.error('Submission error:', err);
+        alert('⚠️ A prediction failed to submit.');
+        return;
+      }
+    }
+
+    alert('✅ All predictions submitted!');
+    window.location.reload();
+  }
+</script>
+{% endblock %}
