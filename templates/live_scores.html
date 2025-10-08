@@ -1,0 +1,192 @@
+{% extends "base.html" %} {% block title %}Live Scores – Stick It In{% endblock %} {% block content
+%}
+<h1 class="live-scores-title">⚽ My Live Scores</h1>
+<style>
+  .day-header {
+    position: sticky;
+    top: 0;
+    background: #fff;
+    padding: 6px 10px;
+    font-weight: 600;
+    border-bottom: 1px solid #eee;
+    z-index: 2;
+    text-align: center;
+    background: #09365998; /* light blue background */
+    box-shadow: 0 2px 4px rgba(251, 251, 251, 0.05);
+    border-radius: 4px;
+    margin: 6px 0;
+  }
+  .day-section {
+    margin-bottom: 14px;
+  }
+</style>
+
+<!-- Legend -->
+<div class="legend">
+  <span><span class="dot live"></span> LIVE</span>
+  <span><span class="dot ok"></span> Prediction correct</span>
+  <span><span class="dot bad"></span> Prediction wrong</span>
+  <span><span class="dot btts-ok"></span> BTTS correct</span>
+  <span><span class="dot btts-bad"></span> BTTS wrong</span>
+  <span><span class="dot btts-na"></span> BTTS no pick</span>
+</div>
+
+<div id="fixtures"></div>
+{% endblock %} {% block scripts %}
+<script>
+  function html(strings, ...vals) {
+    return strings.map((s, i) => s + (vals[i] ?? '')).join('');
+  }
+
+  fetch('/api/live-scores')
+    .then((r) => r.json())
+    .then((data) => {
+      const list = document.getElementById('fixtures');
+      if (!data.fixtures?.length) {
+        list.innerHTML = "<p class='no-predictions'>No predictions yet.</p>";
+        return;
+      }
+
+      // Helper: pick a reliable date source (prefer ISO timestamps if present)
+      function toDateFromAny(v) {
+        if (!v) return null;
+        try {
+          // Firestore Timestamp-like { _seconds, _nanoseconds } or {seconds}
+          if (typeof v === 'object') {
+            if ('_seconds' in v) return new Date(v._seconds * 1000);
+            if ('seconds' in v) return new Date(v.seconds * 1000);
+          }
+
+          if (typeof v === 'string') {
+            const s = v.trim();
+            // Common backend format in SII: YYYY-MM-DD HH:mm
+            const ymdhm = /^\d{4}-\d{2}-\d{2}\s\d{2}:\d{2}$/;
+            if (ymdhm.test(s)) {
+              // Treat as UTC if no TZ provided; backend times are stored UTC.
+              const iso = s.replace(' ', 'T') + ':00Z';
+              const d = new Date(iso);
+              if (!isNaN(d)) return d;
+            }
+            // If it already looks ISO-like, Date can usually parse it
+            const isoLike = /T\d{2}:\d{2}/.test(s) || s.includes('UTC');
+            if (isoLike) {
+              const d = new Date(s);
+              if (!isNaN(d)) return d;
+            }
+            // Final attempt: naive Date parse
+            const d = new Date(s);
+            if (!isNaN(d)) return d;
+            return null;
+          }
+
+          // Numbers: assume ms epoch
+          if (typeof v === 'number') {
+            const d = new Date(v);
+            return isNaN(d) ? null : d;
+          }
+
+          return null;
+        } catch (e) {
+          return null;
+        }
+      }
+
+      function dayKeyAndLabel(fix) {
+        // Prefer explicit kickoff if present; fall back to other fields
+        const raw =
+          fix.kickoff || fix.kickoffISO || fix.kickoff_ts || fix.timestamp || fix.date || null;
+        const d = toDateFromAny(raw);
+        if (!d) return { key: 'Unknown', label: 'Unknown date' };
+        // Build a YYYY-MM-DD key in Europe/London for grouping, plus a pretty label
+        const optsDay = {
+          timeZone: 'Europe/London',
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+        };
+        const optsLabel = {
+          timeZone: 'Europe/London',
+          weekday: 'short',
+          day: '2-digit',
+          month: 'short',
+          year: 'numeric',
+        };
+        const keyParts = new Intl.DateTimeFormat('en-GB', optsDay).formatToParts(d);
+        const y = keyParts.find((p) => p.type === 'year').value;
+        const m = keyParts.find((p) => p.type === 'month').value;
+        const dd = keyParts.find((p) => p.type === 'day').value;
+        const key = `${y}-${m}-${dd}`;
+        const label = new Intl.DateTimeFormat('en-GB', optsLabel).format(d);
+        return { key, label };
+      }
+
+      // Group fixtures by day key
+      const groups = new Map(); // key -> { label, items: [] }
+      data.fixtures.forEach((f) => {
+        const { key, label } = dayKeyAndLabel(f);
+        if (!groups.has(key)) groups.set(key, { label, items: [] });
+        groups.get(key).items.push(f);
+      });
+
+      // Sort groups by key (newest first), and within day keep input order
+      const ordered = Array.from(groups.entries()).sort((a, b) => b[0].localeCompare(a[0]));
+
+      ordered.forEach(([key, group]) => {
+        // Insert day header
+        list.insertAdjacentHTML(
+          'beforeend',
+          `<div class="day-section"><div class="day-header">${group.label}</div></div>`
+        );
+        const dayContainer = list.lastElementChild; // the .day-section we just inserted
+
+        group.items.forEach((f) => {
+          const live =
+            typeof f.time === 'string' &&
+            (f.time.endsWith("'") || ['1H', '2H', 'HT', 'ET', 'P'].includes(f.time));
+
+          const status = live
+            ? 'live'
+            : f.isCorrectPrediction === true
+            ? 'correct'
+            : f.isCorrectPrediction === false
+            ? 'wrong'
+            : '';
+
+          const badge = live
+            ? `<span class="badge">LIVE</span>`
+            : f.time === 'NS'
+            ? `<span class="kick">${f.kickoff ?? ''}</span>`
+            : `<span class="kick">${f.time ?? ''}</span>`;
+
+          const bttsDot = f.bttsPick
+            ? f.isCorrectBTTS === true
+              ? `<span class="dot btts-ok"></span>`
+              : `<span class="dot btts-bad"></span>`
+            : `<span class="dot btts-na"></span>`;
+
+          dayContainer.insertAdjacentHTML(
+            'beforeend',
+            html`
+              <div class="fixture ${status}">
+                <div class="teams">
+                  <span>${f.team1 ?? '?'}</span>
+                  <span class="vs">vs</span>
+                  <span>${f.team2 ?? '?'}</span>
+                </div>
+                <div class="info">
+                  <div class="score">${f.score1 ?? '-'} – ${f.score2 ?? '-'}</div>
+                  ${badge} ${bttsDot}
+                </div>
+              </div>
+            `
+          );
+        });
+      });
+    })
+    .catch((err) => {
+      console.error(err);
+      document.getElementById('fixtures').innerHTML =
+        "<p class='error-msg'>Couldn’t load scores.</p>";
+    });
+</script>
+{% endblock %}
