@@ -1,0 +1,228 @@
+{% extends "base.html" %} {% block title %}League Standings – Stick It In{% endblock %} {% block
+content %}
+<div class="container" style="max-width: 1000px; margin: 40px auto; padding: 0 20px">
+  <h1 style="text-align: center; color: #093759; font-size: 2rem; margin-bottom: 30px">
+    League Standings
+  </h1>
+  <p class="view-hint">
+    For full details (cards & accuracy), rotate your phone or view in landscape.
+  </p>
+
+  <table class="league-table">
+    <thead>
+      <tr>
+        <th class="col-rank" style="background-color: #093759; color: #fff; font-weight: 600">
+          Rank
+        </th>
+        <th class="col-club" style="background-color: #093759; color: #fff; font-weight: 600">
+          Team
+        </th>
+        <th
+          class="col-games"
+          title="Games Predicted this Season (Max: 10 per week)"
+          style="background-color: #093759; color: #fff"
+        >
+          Games
+        </th>
+        <th
+          class="col-correct"
+          title="Correct Predictions Only"
+          style="background-color: #093759; color: #fff"
+        >
+          Correct
+        </th>
+        <th
+          class="col-accuracy"
+          title="(Correct Predictions / Total Predictions) * 100"
+          style="background-color: #093759; color: #fff"
+        >
+          Accuracy
+        </th>
+        <th
+          class="col-yellow"
+          title="Yellow Cards Received this Season"
+          style="background-color: #093759; color: #fff"
+        >
+          🟡
+        </th>
+        <th
+          class="col-red"
+          title="Red Cards Received this Season"
+          style="background-color: #093759; color: #fff"
+        >
+          🔴
+        </th>
+        <th
+          class="col-injury"
+          title="Injury Status (Yes/No)"
+          style="background-color: #093759; color: #fff"
+        >
+          ☠️
+        </th>
+        <th
+          class="col-points"
+          title="Adjusted Points (Deducts Yellow & Red Cards)"
+          style="background-color: #093759; color: #fff"
+        >
+          Points
+        </th>
+      </tr>
+    </thead>
+    <tbody>
+      {% if show_empty_msg %}
+      <tr>
+        <td colspan="9" style="text-align: center; padding: 20px; font-size: 1rem; color: #888">
+          🆕 New Season Underway – Make 10 Predictions to Enter the League!
+        </td>
+      </tr>
+      {% endif %} {% for user in all_users %}
+      <tr
+        class="league-row {% if user.username == current_user.username %}highlight-you{% endif %}"
+      >
+        <td
+          class="col-rank {% if user.rank == 1 %}gold{% elif user.rank == 2 %}silver{% elif user.rank == 3 %}bronze{% endif %}"
+          data-label="Rank"
+        >
+          {{ user.rank }}
+        </td>
+        <td
+          class="club-cell col-club"
+          title="Manager: {{ user.managerName or '—' }}"
+          data-label="Team"
+        >
+          {% if user.clubImageUrl %}
+          <img src="{{ user.clubImageUrl }}" alt="Team image" style="height: 24px; width: auto" />
+          {% endif %}
+          <span class="club-name">{{ user.username }}</span>
+        </td>
+        <td class="col-games" data-label="Games">{{ user.games_predicted }}</td>
+        <td class="col-correct" data-label="Correct">{{ user.points }}</td>
+        <td class="col-accuracy" data-label="Accuracy">{{ user.accuracy }}%</td>
+        <td class="col-yellow" data-label="🟡">{{ user.yellow_cards }}</td>
+        <td class="col-red" data-label="🔴">{{ user.red_cards }}</td>
+        <td
+          class="col-injury"
+          data-label="☠️"
+          style="color: {{ 'red' if user.injury_status == '❌' else 'green' }}"
+        >
+          {{ user.injury_status }}
+        </td>
+        <td class="col-points" data-label="Points">{{ user.adjusted_points }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  <style>
+    /* Desktop tweaks */
+    .league-row {
+      text-align: center;
+    }
+    .club-cell {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      justify-content: center;
+    }
+    .club-cell .club-name {
+      font-weight: 600;
+    }
+    .highlight-you {
+      outline: 2px solid #2066c7;
+      outline-offset: -2px;
+    }
+    .view-hint {
+      text-align: center;
+      color: #6b7a8c;
+      font-size: 0.9rem;
+      margin: -18px 0 14px;
+      display: none; /* hidden by default, shown on small screens */
+    }
+
+    /* Mobile: keep table shape, compact view */
+    @media (max-width: 720px) {
+      .container {
+        padding: 0 8px;
+      }
+
+      .league-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: clamp(12px, 3.4vw, 14px);
+        table-layout: fixed;
+      }
+
+      .league-table thead th {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: #093759;
+        color: #fff;
+        padding: 6px 8px;
+        border-bottom: 0;
+      }
+
+      .league-table td {
+        padding: 6px 8px;
+        border-bottom: 1px solid #eef2f7;
+        height: 36px;
+      }
+
+      .view-hint {
+        display: block;
+      }
+
+      /* Show only the essentials to keep the “league picture” */
+      .league-table .col-correct,
+      .league-table .col-accuracy,
+      .league-table .col-yellow,
+      .league-table .col-red,
+      .league-table .col-injury {
+        display: none;
+      }
+
+      /* Make rows tighter and readable */
+      .league-row {
+        line-height: 1.2;
+      }
+
+      .club-cell img {
+        height: 18px;
+        width: auto;
+      }
+
+      .club-cell .club-name {
+        display: inline-block;
+        max-width: 16ch;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        vertical-align: middle;
+      }
+
+      /* Keep key numeric columns narrow and aligned */
+      .col-rank,
+      .col-games,
+      .col-points {
+        width: 56px;
+        text-align: center;
+        white-space: nowrap;
+      }
+
+      .col-club {
+        width: auto;
+      }
+
+      /* Optional zebra for scanability */
+      .league-table tbody tr:nth-child(odd) {
+        background: #fcfdff;
+      }
+
+      /* Your row highlight still works */
+      .highlight-you {
+        outline: 2px solid #2066c7;
+        outline-offset: -2px;
+      }
+    }
+  </style>
+</div>
+{% endblock %}
