@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>You're In!</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/quiz.css') }}">
+</head>
+<body>
+
+<div class="logo-bar">
+  <img src="{{ url_for('static', filename='images/logoCircle.png') }}" alt="Stick It In logo">
+</div>
+
+<div class="container">
+  <h2>Congratulations, {{ name }}!</h2>
+  <p>We've saved your interest in a shortlist and will be in touch soon.</p>
+  <p>Watch your inbox and our TikTok for team release updates,</p>
+  <p>and further information.</p>
+</div>
+
+</body>
+</html>

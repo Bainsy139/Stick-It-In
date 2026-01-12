@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Manager's Office - Stick It In</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
+  <style>
+    body {
+      background-color: #0a0d12;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+
+    h1, h2, h3 {
+      color: #4ea1ff;
+      text-align: center;
+    }
+
+    .tabs-container {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .tabs .tab-link {
+      background: #1e2a38;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      margin: 0 5px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .tabs .tab-link.active {
+      background-color: #00c853;
+      box-shadow: 0 0 10px #00c853;
+      font-weight: bold;
+    }
+
+    .tab-content {
+      background-color: #131a22;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 0 12px rgba(78, 161, 255, 0.2);
+      margin-bottom: 40px;
+    }
+
+    .actions-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 15px;
+      margin-top: 20px;
+    }
+
+    .action-card {
+      background-color: #1e2a38;
+      border: 1px solid #4ea1ff;
+      border-radius: 8px;
+      padding: 15px;
+      color: white;
+      text-align: center;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+
+    .action-card.active {
+      background-color: #00c853;
+      box-shadow: 0 0 10px #00c853;
+    }
+
+    .action-card.disabled {
+      background-color: #444;
+      color: #999;
+      cursor: not-allowed;
+    }
+
+    .manager-stats ul {
+      list-style: none;
+      padding: 0;
+    }
+
+    .predictions-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .predictions-table th, .predictions-table td {
+      padding: 10px;
+      text-align: center;
+      border-bottom: 1px solid #2c3e50;
+    }
+
+    .predictions-table th {
+      background-color: #1e2a38;
+      color: #4ea1ff;
+    }
+
+    .achievement-card {
+      display: inline-block;
+      margin: 10px;
+      text-align: center;
+    }
+
+    .achievement-card img {
+      width: 100px;
+    }
+
+    .home-button {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background-color: #4ea1ff;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Manager's Office</h1>
+
+    <div class="tabs-container">
+      <div class="tabs">
+        <button class="tab-link" onclick="openTab(event, 'actions')">Actions</button>
+        <button class="tab-link" onclick="openTab(event, 'stats')">Manager Stats</button>
+        <button class="tab-link" onclick="openTab(event, 'predictions')">Predictions</button>
+        <button class="tab-link" onclick="openTab(event, 'achievements')">Achievements</button>
+      </div>
+    </div>
+
+    <div id="actions" class="tab-content">
+      <h2>Available Actions</h2>
+      <div class="actions-grid">
+        {% for action, count in user.actions.items() %}
+          <div class="action-card {{ 'active' if count > 0 else 'disabled' }}" onclick="showActionForm('{{ action }}', {{ count }})">
+            <p>{{ action.replace('_', ' ').title() }}</p>
+            <span class="action-count">{{ count }}</span>
+          </div>
+        {% endfor %}
+      </div>
+      <div id="actionFormContainer"></div>
+    </div>
+
+    <div id="stats" class="tab-content" style="display:none">
+      <h2>Manager Stats</h2>
+      {% for category, stats in user.managerStats.items() %}
+        <h3>{{ category }}</h3>
+        <ul>
+          {% for stat in stats %}
+            <li><strong>{{ stat.label }}:</strong> {{ stat.value }}</li>
+          {% endfor %}
+        </ul>
+      {% endfor %}
+    </div>
+
+    <div id="predictions" class="tab-content" style="display:none">
+      <h2>My Predictions</h2>
+      <table class="predictions-table">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Team 1</th>
+            <th>VS</th>
+            <th>Team 2</th>
+            <th>Prediction</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for pred in predictions %}
+            <tr>
+              <td>{{ pred.date.strftime('%a, %d %b %Y - %H:%M UTC') }}</td>
+              <td>{{ pred.team1 }}</td>
+              <td>VS</td>
+              <td>{{ pred.team2 }}</td>
+              <td>{{ pred.prediction }}</td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div id="achievements" class="tab-content" style="display:none">
+      <h2>Achievements</h2>
+      <div class="achievements-grid">
+        {% for achievement, desc in all_achievements.items() %}
+          {% set unlocked = achievement in user_achievements %}
+          <div class="achievement-card">
+            <img src="{{ url_for('static', filename='images/achievements/' + (achievement ~ '.png' if unlocked else achievement ~ '_grey.png')) }}">
+            <p><strong>{{ achievement }}</strong><br>{{ desc }}</p>
+          </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+
+  <a href="{{ url_for('home') }}" class="home-button">🏠 Home</a>
+
+  <script>
+    function openTab(evt, tabName) {
+      var i, tabcontent, tablinks;
+      // Hide all .tab-content
+      tabcontent = document.getElementsByClassName("tab-content");
+      for (i = 0; i < tabcontent.length; i++) {
+        tabcontent[i].style.display = "none";
+      }
+      // Remove "active" class from all tab buttons
+      tablinks = document.getElementsByClassName("tab-link");
+      for (i = 0; i < tablinks.length; i++) {
+        tablinks[i].className = tablinks[i].className.replace(" active", "");
+      }
+      // Show current tab, and add "active" to the button
+      document.getElementById(tabName).style.display = "block";
+      evt.currentTarget.className += " active";
+    }
+
+    document.addEventListener("DOMContentLoaded", function() {
+      // Auto-click the first tab on page load
+      document.getElementsByClassName("tab-link")[0].click();
+    });
+
+    function showActionForm(action, count) {
+      let container = document.getElementById("actionFormContainer");
+
+      // If the same action is clicked again, hide it
+      if (container.dataset.currentAction === action) {
+        container.innerHTML = "";
+        container.dataset.currentAction = "";
+        return;
+      }
+
+      container.innerHTML = "";
+      container.dataset.currentAction = action;
+
+      // If no actions are available
+// Skip count check for match_fix
+if (count <= 0 && action !== "match_fix") {
+  container.innerHTML = `<p class="error-message">⚠️ No ${action.replace("_", " ")} available!</p>`;
+  return;
+}
+
+
+      // Special case: Match Fixing (no target user, self-applied)
+if (action === "match_fix") {
+  let formHTML = `
+    <div class="action-menu match-fix-form">
+        <h3>Use Match Fix</h3>
+        <p>This will cost <strong>20 coins</strong> and grant you <strong>+3 predictions</strong>.</p>
+        <button id="confirmMatchFix">Confirm</button>
+        <p id="matchFixMessage" class="hidden"></p>
+    </div>
+  `;
+  container.innerHTML = formHTML;
+
+  document.getElementById("confirmMatchFix").addEventListener("click", function () {
+    fetch("/use_match_fix", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    })
+      .then((response) => response.json())
+      .then((data) => {
+        const messageBox = document.getElementById("matchFixMessage");
+        messageBox.textContent = data.message;
+        messageBox.classList.remove("hidden");
+
+        // Hide message and form after 3 seconds
+        setTimeout(() => {
+          messageBox.classList.add("hidden");
+          container.innerHTML = "";
+          container.dataset.currentAction = "";
+        }, 3000);
+      });
+  });
+
+  return; // Exit early since we handled Match Fix
+}
+
+// Special case: Sponge (self-use)
+if (action === "sponge") {
+  let formHTML = `
+    <div class="action-menu sponge-form">
+        <h3>Use Sponge</h3>
+        <p>This will heal <strong>1 injury</strong> you have received.</p>
+        <button id="confirmSpongeUse">Confirm</button>
+        <p id="spongeMessage" class="hidden"></p>
+    </div>
+  `;
+  container.innerHTML = formHTML;
+
+  document.getElementById("confirmSpongeUse").addEventListener("click", function () {
+    fetch("/use_sponge", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" }
+    })
+    .then(response => response.json())
+    .then(data => {
+      const messageBox = document.getElementById("spongeMessage");
+      messageBox.textContent = data.message;
+      messageBox.classList.remove("hidden");
+
+      setTimeout(() => {
+        messageBox.classList.add("hidden");
+        container.innerHTML = "";
+        container.dataset.currentAction = "";
+      }, 3000);
+    });
+  });
+
+  return; // Exit early for sponge
+}
+
+      // Special case: Scout card
+      if (action === "scouts") {
+        let formHTML = `
+          <div class="action-menu scouts-form">
+              <h3>Use Scout Card</h3>
+              <form id="scoutsForm">
+                  <label for="targetUserScout">Select User:</label>
+                  <select id="targetUserScout" name="targetUser">
+                      <option value="" disabled selected>-- Select a user --</option>
+                      {% for user in all_users %}
+                          <option value="{{ user.id }}">{{ user.username }}</option>
+                      {% endfor %}
+                  </select>
+                  <button type="submit">Confirm</button>
+              </form>
+              <p id="scoutsMessage" class="hidden"></p>
+          </div>
+        `;
+        container.innerHTML = formHTML;
+
+        let form = document.getElementById("scoutsForm");
+        form.addEventListener("submit", function(event) {
+          event.preventDefault();
+          let targetUser = document.getElementById("targetUserScout").value;
+          let messageBox = document.getElementById("scoutsMessage");
+
+          if (!targetUser) {
+            messageBox.innerHTML = `<p class="error-message">⚠️ No user selected!</p>`;
+            return;
+          }
+
+          fetch(`/use_scout`, {
+            method: "POST",
+            body: JSON.stringify({ targetUser: targetUser }),
+            headers: { "Content-Type": "application/json" }
+          })
+          .then(response => response.json())
+          .then(data => {
+            if (data.predictions && data.predictions.length > 0) {
+              let predictionsHTML = "<h3>Last Predictions:</h3><ul>";
+              data.predictions.forEach(pred => {
+                predictionsHTML += `<li>${pred.fixture} - ${pred.prediction}</li>`;
+              });
+              predictionsHTML += "</ul>";
+              messageBox.innerHTML = predictionsHTML;
+            } else {
+              messageBox.innerHTML = `<p class="error-message">⚠️ Target has no predictions yet!</p>`;
+            }
+            messageBox.classList.remove("hidden");
+
+            // Hide after 5 seconds
+            setTimeout(() => {
+              messageBox.classList.add("hidden");
+              container.innerHTML = "";
+              container.dataset.currentAction = "";
+            }, 5000);
+          });
+        });
+        return;
+      }
+
+      // Standard action form (Yellow/Red Card, Injury, etc.)
+      let formHTML = `
+        <div class="action-menu ${action}-form">
+          <h3>Give a ${action.replace("_", " ")}</h3>
+          <form id="${action}Form">
+              <label for="targetUser">Select User:</label>
+              <select id="targetUser" name="targetUser">
+                  <option value="" disabled selected>-- Select a user --</option>
+                  {% for user in all_users %}
+                      <option value="{{ user.id }}">{{ user.username }}</option>
+                  {% endfor %}
+              </select>
+              <button type="submit">Confirm</button>
+          </form>
+          <p id="${action}Message" class="hidden"></p>
+        </div>
+      `;
+      container.innerHTML = formHTML;
+
+      let form = document.getElementById(`${action}Form`);
+      form.addEventListener("submit", function(event) {
+        event.preventDefault();
+
+        let targetUser = document.getElementById("targetUser").value;
+        let messageBox = document.getElementById(`${action}Message`);
+
+        fetch(`/give_${action}`, {
+          method: "POST",
+          body: JSON.stringify({ targetUser: targetUser }),
+          headers: { "Content-Type": "application/json" }
+        })
+        .then(response => response.json())
+        .then(data => {
+          messageBox.textContent = data.message;
+          messageBox.classList.remove("hidden");
+
+          // Hide success message after 3 seconds
+          setTimeout(() => {
+            messageBox.classList.add("hidden");
+            container.innerHTML = "";
+            container.dataset.currentAction = "";
+          }, 3000);
+        });
+      });
+    }
+  </script>
+
+</body>
+</html>

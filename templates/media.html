@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+
+{% block title %}Media Centre – Stick It In{% endblock %}
+
+{% block content %}
+  <h1 style="margin: 24px 0; font-size: 2rem; font-weight: bold; color: #093759; text-align: center;">
+    Media Centre
+  </h1>
+
+  <p style="margin: 20px 0; font-size: 1rem; font-weight: regular; color: #093759; text-align: center;">
+    Catch up on the latest videos, chaos recaps, and club updates from Stick It In.
+  </p>
+
+  <div class="media-grid" style="display: flex; flex-wrap: wrap; gap: 20px; justify-content: center; margin-top: 20px;">
+    <!-- Example embedded video -->
+    <div style="flex: 1 1 300px; max-width: 500px;">
+      <iframe width="100%" height="280" src="https://www.youtube.com/embed/dQw4w9WgXcQ" 
+              title="YouTube video player" frameborder="0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+              allowfullscreen></iframe>
+    </div>
+
+    <div style="flex: 1 1 300px; max-width: 500px;">
+      <iframe width="100%" height="280" src="https://www.youtube.com/embed/oHg5SJYRHA0" 
+              title="YouTube video player" frameborder="0" 
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+              allowfullscreen></iframe>
+    </div>
+
+    <!-- Add more video blocks as needed -->
+  </div>
+{% endblock %}

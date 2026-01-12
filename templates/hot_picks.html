@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Community Picks - Stick It In</title>
+  <style>
+    body { background-color: #0a0d12; color: white; font-family: 'Segoe UI', sans-serif; padding: 20px; }
+    .container { max-width: 700px; margin: auto; }
+    h1 { color: #4ea1ff; }
+    .fixture { padding: 12px; border-radius: 8px; margin-bottom: 10px; }
+    .green { background-color: #14532d; }
+    .red { background-color: #581c1c; }
+    .yellow { background-color: #7c6f14; }
+    .grey { background-color: #2e2e2e; }
+    .stats { margin-top: 20px; background: #1e2a38; padding: 20px; border-radius: 10px; }
+    .msg { background-color: #131a22; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .button { background-color: #4ea1ff; color: #fff; padding: 10px; border-radius: 8px; text-decoration: none; display: inline-block; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>📊 Community Picks</h1>
+
+    {% if not access_granted %}
+      <div class="msg">
+        🚫 You must complete all 10 predictions to view Community Picks.<br>
+        <a href="{{ url_for('game_entry') }}" class="button">Make Predictions</a>
+      </div>
+    {% elif not picks %}
+      <div class="msg">
+        ⚠️ Not enough data yet. Invite a mate to help shape the picks!
+      </div>
+    {% else %}
+      {% for pick in picks %}
+        <div class="fixture {{ pick.color }}">
+          <strong>{{ pick.team1 }} vs {{ pick.team2 }}</strong><br>
+          Most Popular Pick: <strong>{{ pick.prediction }}</strong><br>
+          Votes: {{ pick.user_agreement }}
+        </div>
+      {% endfor %}
+
+      <div class="stats">
+        <strong>Top 3 Accuracy Last Week:</strong> {{ top3_accuracy }}<br>
+        <strong>Top 3 Streak:</strong> {{ top3_streak }} weeks<br>
+        <strong>Community Win Rate:</strong> {{ avg_win_rate }}%
+      </div>
+    {% endif %}
+
+    <a href="{{ url_for('home') }}" class="button">🏠 Back to Home</a>
+  </div>
+</body>
+</html>

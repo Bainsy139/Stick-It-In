@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Live League - Stick It In</title>
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='images/favicon.png') }}">
+  <style>
+    body {
+      background-color: #0a0d12;
+      color: white;
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    .title-block {
+      background: rgba(10, 13, 18, 0.9);
+      padding: 20px;
+      text-align: center;
+      border-bottom: 1px solid #1e2a38;
+    }
+    .global-league-title {
+      margin: 0;
+      font-size: 2rem;
+      color: #4ea1ff;
+    }
+    .global-league-table {
+      padding: 20px;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background-color: #131a22;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(78, 161, 255, 0.1);
+      overflow: hidden;
+    }
+    th, td {
+      padding: 12px;
+      text-align: center;
+      border-bottom: 1px solid #1e2a38;
+      font-size: 0.95rem;
+    }
+    th {
+      background-color: #1a232f;
+      color: #4ea1ff;
+      font-weight: 600;
+    }
+    tr:nth-child(even) {
+      background-color: #151c27;
+    }
+    tr:hover {
+      background-color: #1c2735;
+    }
+    tr td:first-child {
+      font-weight: bold;
+    }
+    .highlight-you {
+      background-color: #203c57 !important;
+      box-shadow: 0 0 10px #4ea1ff;
+    }
+    .home-button {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      background-color: #4ea1ff;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 8px;
+      text-decoration: none;
+      font-weight: bold;
+      z-index: 1000;
+    }
+  </style>
+</head>
+<body class="global-league-page">
+
+  <header class="title-block">
+    <h1 class="global-league-title">📊 Live League Standings 📊</h1>
+  </header>
+
+  <a href="{{ url_for('home') }}" class="home-button">🏠 Home</a>
+
+  <div class="global-league-table">
+    <table id="league-table">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Username</th>
+          <th>Points</th>
+          <th>Live Boost</th>
+          <th>Projected</th>
+        </tr>
+      </thead>
+      <tbody id="league-body">
+        <tr><td colspan="5">Loading live league...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      fetch('/api/live-league')
+        .then(response => response.json())
+        .then(data => {
+          const tableBody = document.getElementById('league-body');
+          tableBody.innerHTML = '';
+
+          data.users.forEach(user => {
+            const row = document.createElement('tr');
+            if (user.username === data.current_user) {
+              row.classList.add('highlight-you');
+            }
+
+            row.innerHTML = `
+              <td>${user.rank}</td>
+              <td>${user.username}</td>
+              <td>${user.base_points}</td>
+              <td>${user.boost > 0 ? '+' + user.boost : ''}</td>
+              <td><strong>${user.projected}</strong></td>
+            `;
+
+            tableBody.appendChild(row);
+          });
+        })
+        .catch(error => {
+          console.error('Error loading live league:', error);
+          document.getElementById('league-body').innerHTML = "<tr><td colspan='5'>Error loading data</td></tr>";
+        });
+    });
+  </script>
+
+</body>
+</html>
+
