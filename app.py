@@ -19,8 +19,8 @@ import os
 # load dot env is the file in which my secrets are stored?
 from dotenv import load_dotenv
 
-# HTTP client for making external API Calls
 import requests  
+import base64
 
 # Runs a function once after a delay
 from threading import Timer
@@ -523,8 +523,31 @@ def profile():
 
     return render_template(
         "profile.html",
+
+        # Identity
         username=data.get("username", ""),
-        managerName=data.get("managerName", "")
+        managerName=data.get("managerName", ""),
+        clubImageUrl=data.get("clubImageUrl", ""),
+        teamValue=data.get("teamValue", 0.0),
+
+        # Prediction stats (raw counts)
+        totalPredictions=data.get("totalPredictions", 0),
+        correctPredictions=data.get("correctPredictions", 0),
+        predictionCount=data.get("predictionCount", 0),
+
+        totalBTTS=data.get("totalBTTS", 0),
+        correctBTTS=data.get("correctBTTS", 0),
+        bttsCount=data.get("bttsCount", 0),
+
+        # Discipline / cards (read‑only)
+        yellowCardsReceived=data.get("yellowCardsReceived", 0),
+        yellowCardsAvailable=data.get("yellowCardsAvailable", 0),
+
+        redCardsReceived=data.get("redCardsReceived", 0),
+        redCardsAvailable=data.get("redCardsAvailable", 0),
+
+        injuriesReceived=data.get("injuriesReceived", 0),
+        injuriesAvailable=data.get("injuriesAvailable", 0),
     )
 
 
@@ -680,26 +703,22 @@ def submit_interest():
 
 @app.route("/home")
 def home():
-    """User dashboard: shows weekly timer state, leaderboard position, and quick stats."""
+    """User dashboard: shows weekly timer state, leaderboard position, quick stats, and public pot graph."""
     if "user_id" not in session:
         flash("⚠️ Please log in first.")
         return redirect(url_for("login"))
 
     user_id = session["user_id"]
-    username = ""
-    manager_name = ""
-    club_image_url = ""
 
-    # Design note:
-    # The "prediction window" runs Mon 00:01 → Fri 23:58 (UTC-ish). At weekends the UI
-    # is locked. Eventually this will sync with the backend season/week automation.
-    # Timer logic
+
+    # ---------------------------
+    # Timer window (Mon 00:01 → Fri 23:58 UTC) vs weekend lockout
+    # ---------------------------
     now = datetime.now(timezone.utc)
     weekday = now.weekday()
     monday_start = now - timedelta(days=weekday, hours=now.hour, minutes=now.minute,
                                    seconds=now.second, microseconds=now.microsecond) + timedelta(minutes=1)
     friday_end = monday_start + timedelta(days=4, hours=23, minutes=58)
-
     if monday_start <= now <= friday_end:
         mode = "prediction_window"
         time_left = friday_end - now
@@ -711,7 +730,12 @@ def home():
         mode = "weekend_lockout"
         time_left_str = None
 
+    # ---------------------------
     # Defaults
+    # ---------------------------
+    username = ""
+    manager_name = ""
+    club_image_url = ""
     club_data = None
     club_name = None
     club_id = None
@@ -720,29 +744,38 @@ def home():
     btts_count = None
     team_value = None
     available_cards = []
+    news = []
+    season_number, week_number = 2025, 1
+    pot_labels, pot_values = [], []
+    all_users = []
 
+    # ---------------------------
+    # User & leaderboard
+    # ---------------------------
     try:
         user_doc = db.collection("users").document(user_id).get()
         if user_doc.exists:
-            user_data = user_doc.to_dict()
-            # New: identity from user doc (no clubs collection)
+            user_data = user_doc.to_dict() or {}
+
+            # Identity from USER doc
             username = user_data.get("username", "") or ""
             manager_name = user_data.get("managerName", "") or ""
-            club_image_url = user_data.get("clubImageUrl", "") or ""
+            club_image_url = user_data.get("clubImageUrl", "") or ""  # used for synthetic badge
             club_id = user_data.get("clubID")
+
+            # Counts & stats
             prediction_count = user_data.get("predictionCount", 0)
             btts_count = user_data.get("bttsCount", 0)
             correct_btts = user_data.get("correctBTTS", 0)
             correct_predictions = user_data.get("correctPredictions", 0)
             total_predictions = user_data.get("totalPredictions", 0)
+            total_btts = user_data.get("totalBTTS", 0)
             yellow_cards = user_data.get("yellowCardsReceived", 0)
             red_cards = user_data.get("redCardsReceived", 0)
             injuries = user_data.get("injuriesReceived", 0)
-            total_btts = user_data.get("totalBTTS", 0)
 
             total_games = total_predictions + total_btts
 
-            # Check card availability
             if user_data.get("yellowCardsAvailable", 0) > 0:
                 available_cards.append("yellow")
             if user_data.get("redCardsAvailable", 0) > 0:
@@ -750,18 +783,19 @@ def home():
             if user_data.get("injuriesAvailable", 0) > 0:
                 available_cards.append("injury")
 
-            adjusted_points = (correct_predictions + correct_btts) - (yellow_cards + (3 * red_cards) + (2 * injuries))
-            accuracy = round(((correct_predictions + correct_btts) / total_games) * 100, 1) if total_games > 0 else 0.0
+            # Your adjusted points & accuracy
+            _adjusted_points = (correct_predictions + correct_btts) - (
+                yellow_cards + (3 * red_cards) + (2 * injuries)
+            )
+            _accuracy = round(
+                ((correct_predictions + correct_btts) / total_games) * 100, 1
+            ) if total_games > 0 else 0.0
 
-            # Fetch all users and calculate ranks
-            users = db.collection("users").stream()
+            # Leaderboard (rank by adjusted points, then accuracy)
             leaderboard = []
-
-            for u in users:
-                u_data = u.to_dict()
-                correct_predictions = u_data.get("correctPredictions", 0)
-                correct_btts = u_data.get("correctBTTS", 0)
-                u_points = correct_predictions + correct_btts
+            for u in db.collection("users").stream():
+                u_data = u.to_dict() or {}
+                u_points = u_data.get("correctPredictions", 0) + u_data.get("correctBTTS", 0)
                 u_total = u_data.get("totalPredictions", 0) + u_data.get("totalBTTS", 0)
                 if u_total < 2:
                     continue
@@ -770,7 +804,6 @@ def home():
                 u_injury = u_data.get("injuriesReceived", 0)
                 u_adjusted = u_points - (u_yellow + (3 * u_red) + (2 * u_injury))
                 u_accuracy = round((u_points / u_total) * 100, 1) if u_total > 0 else 0.0
-
                 leaderboard.append({
                     "id": u.id,
                     "adjusted_points": u_adjusted,
@@ -783,51 +816,95 @@ def home():
                     league_position = idx + 1
                     break
 
-            # Source team value from USER doc (not clubs)
+            # Value & naming from USER doc
             team_value = user_data.get("teamValue", 0.0)
-            # Optional: prefer a clubName saved on the user doc, else fall back to username
             club_name = user_data.get("clubName") or (user_data.get("username", "") or None)
-            club_data = None  # stop carrying legacy club fields
+
+            # Synthesise a minimal club dict for {{ club.badgeUrl }}
+            club_data = {"badgeUrl": club_image_url, "clubName": club_name}
 
     except Exception as e:
-        print("🔥 Error fetching user/club data:", e)
+        print("🔥 Error fetching user/leaderboard data:", e)
         flash("Error loading your dashboard.")
 
+    # ---------------------------
+    # Season & announcements
+    # ---------------------------
     try:
         season_doc = db.collection("state").document("seasonTracking").get()
-        season_data = season_doc.to_dict()
-        season_number = season_data.get("seasonYear", 2025)
-        week_number = season_data.get("weekNumber", 1)
-    except:
-        season_number, week_number = 2025, 1
+        if season_doc.exists:
+            season_data = season_doc.to_dict() or {}
+            season_number = season_data.get("seasonYear", 2025)
+            week_number = season_data.get("weekNumber", 1)
+    except Exception as e:
+        print("ℹ️ Season fallback:", e)
 
     try:
         news_doc = db.collection("state").document("announcements").get()
-        news = news_doc.to_dict().get("news", [])
-    except:
-        news = []
+        if news_doc.exists:
+            news = (news_doc.to_dict() or {}).get("news", []) or []
+    except Exception as e:
+        print("ℹ️ Announcements fallback:", e)
 
-    # Fetch all users (excluding self)
-    all_users = []
-    users_query = db.collection("users").stream()
-    for doc in users_query:
-        other = doc.to_dict() or {}
-        uid = doc.id
-        if uid == user_id:
-            continue
-        club_name_target = other.get("clubName") or other.get("username") or "Unknown"
-        username_target = (other.get("username") or other.get("clubName") or "Unknown")
-        all_users.append({
-            "user_id": uid,
-            "club_name": club_name_target,
-            "clubID": other.get("clubID"),
-            # expose their teamValue if the template wants to show it
-            "teamValue": other.get("teamValue", 0.0),
-            # NEW: username for dropdowns/UI that should show usernames
-            "username": username_target
-        })
+    # ---------------------------
+    # Public pot graph (communityPotHistory collection)
+    # ---------------------------
+    try:
+        pot_labels, pot_values = [], []
+        q = db.collection("communityPotHistory").order_by(
+            "week", direction=firestore.Query.ASCENDING
+        )
+        for doc in q.stream():
+            d = doc.to_dict() or {}
+            wk = d.get("week")
+            if wk is None:
+                try:
+                    wk = int(doc.id)
+                except Exception:
+                    continue
+            val = d.get("value")
+            if val is None:
+                continue
+            pot_labels.append(wk)
+            pot_values.append(float(val))
 
-    return render_template("home.html",
+        # Sort by week
+        zipped = sorted(zip(pot_labels, pot_values), key=lambda x: x[0])
+        if zipped:
+            pot_labels, pot_values = map(list, zip(*zipped))
+        else:
+            pot_labels, pot_values = [], []
+
+    except Exception as e:
+        print("ℹ️ Pot history read error:", e)
+        pot_labels, pot_values = [], []
+
+    # ---------------------------
+    # Other users (for future dropdowns, actions, etc.)
+    # ---------------------------
+    try:
+        for doc in db.collection("users").stream():
+            uid = doc.id
+            if uid == user_id:
+                continue
+            other = doc.to_dict() or {}
+            club_name_target = other.get("clubName") or other.get("username") or "Unknown"
+            username_target = other.get("username") or other.get("clubName") or "Unknown"
+            all_users.append({
+                "user_id": uid,
+                "club_name": club_name_target,
+                "clubID": other.get("clubID"),
+                "teamValue": other.get("teamValue", 0.0),
+                "username": username_target
+            })
+    except Exception as e:
+        print("ℹ️ All users fetch fallback:", e)
+
+    # ---------------------------
+    # Render
+    # ---------------------------
+    return render_template(
+        "home.html",
         username=username,
         managerName=manager_name,
         clubImageUrl=club_image_url,
@@ -844,70 +921,11 @@ def home():
         mode=mode,
         time_left_str=time_left_str,
         all_users=all_users,
-        available_cards=available_cards,  # 👈 new context for dropdown filtering
-        current_user_id=user_id
+        available_cards=available_cards,
+        current_user_id=user_id,
+        pot_labels=pot_labels,
+        pot_values=pot_values
     )
-
-
-@app.route("/teams")
-def public_team_directory():
-    users = list(db.collection("users").stream())
-    clubs_raw = list(db.collection("clubs").stream())
-
-    club_data = {}
-    user_stats = []
-
-    # Map clubs by ID
-    for doc in clubs_raw:
-        club = doc.to_dict()
-        club_id = doc.id
-        club_data[club_id] = club
-
-    # Collect user stats for ranking
-    for doc in users:
-        user = doc.to_dict()
-        club_id = user.get("clubID")
-        if not club_id or club_id not in club_data:
-            continue
-
-        correct_preds = user.get("correctPredictions", 0)
-        correct_btts = user.get("correctBTTS", 0)
-        total_preds = user.get("totalPredictions", 0)
-        total_btts = user.get("totalBTTS", 0)
-        yellow = user.get("yellowCardsReceived", 0)
-        red = user.get("redCardsReceived", 0)
-        injuries = user.get("injuriesReceived", 0)
-
-        total_points = correct_preds + correct_btts
-        adjusted_points = total_points - (yellow + 3 * red + 2 * injuries)
-        total_games = total_preds + total_btts
-        accuracy = round((total_points / total_games) * 100, 1) if total_games else 0.0
-
-        user_stats.append({
-            "clubID": club_id,
-            "adjusted_points": adjusted_points,
-            "accuracy": accuracy
-        })
-
-    # Sort to assign league positions
-    user_stats.sort(key=lambda x: (-x["adjusted_points"], -x["accuracy"]))
-    positions = {entry["clubID"]: idx + 1 for idx, entry in enumerate(user_stats)}
-
-    # Final merge
-    enriched_clubs = []
-    for club_id, club in club_data.items():
-        club_copy = club.copy()
-        club_copy["leaguePosition"] = positions.get(club_id)
-        club_copy["totalPoints"] = next((u["adjusted_points"] for u in user_stats if u["clubID"] == club_id), 0)
-        club_copy["accuracy"] = next((u["accuracy"] for u in user_stats if u["clubID"] == club_id), 0)
-        club_copy["coinBalance"] = club_copy.get("coinBalance", 0)
-        club_copy["value"] = round(club_copy.get("value", 0.0), 2)
-        enriched_clubs.append(club_copy)
-
-    # Optional alphabetical sort
-    enriched_clubs.sort(key=lambda c: c.get("clubName", "ZZZ"))
-
-    return render_template("public_team_directory.html", clubs=enriched_clubs)
 
 # -----------------------------------------------------
 # Reporting Page Route
@@ -1335,6 +1353,150 @@ def distribute_pot():
 # -----------------------------------------------------
 # V3 shop / marketplace
 # -----------------------------------------------------
+
+# --- PayPal order helper and routes ---
+def _paypal_get_access_token():
+    client_id = os.getenv("PAYPAL_CLIENT_ID")
+    client_secret = os.getenv("PAYPAL_CLIENT_SECRET")
+    env = os.getenv("PAYPAL_ENV", "sandbox")
+
+    if not client_id or not client_secret:
+        raise RuntimeError("PayPal credentials not set")
+
+    base = "https://api-m.sandbox.paypal.com" if env == "sandbox" else "https://api-m.paypal.com"
+    auth = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+
+    resp = requests.post(
+        f"{base}/v1/oauth2/token",
+        headers={
+            "Authorization": f"Basic {auth}",
+            "Content-Type": "application/x-www-form-urlencoded"
+        },
+        data={"grant_type": "client_credentials"},
+        timeout=20
+    )
+    resp.raise_for_status()
+    return base, resp.json()["access_token"]
+
+
+@app.route("/paypal/create-order", methods=["POST"])
+def paypal_create_order():
+    if "user_id" not in session:
+        flash("Please log in first.")
+        return redirect(url_for("login"))
+
+    try:
+        base, token = _paypal_get_access_token()
+
+        order_payload = {
+            "intent": "CAPTURE",
+            "purchase_units": [{
+                "amount": {
+                    "currency_code": "GBP",
+                    "value": "1.00"
+                },
+                "description": "250 SII Coins"
+            }],
+            "application_context": {
+                "brand_name": "Stick It In",
+                "landing_page": "NO_PREFERENCE",
+                "user_action": "PAY_NOW",
+                "return_url": url_for("paypal_capture_order", _external=True),
+                "cancel_url": url_for("marketplace", _external=True)
+            }
+        }
+
+        resp = requests.post(
+            f"{base}/v2/checkout/orders",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            json=order_payload,
+            timeout=20
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        # Store pending order for audit
+        db.collection("coin_purchases").document(data["id"]).set({
+            "user_id": session["user_id"],
+            "status": "created",
+            "amount_gbp": 1.00,
+            "coins": 250,
+            "created_at": firestore.SERVER_TIMESTAMP
+        })
+
+        for link in data.get("links", []):
+            if link.get("rel") == "approve":
+                return redirect(link["href"])
+
+        flash("PayPal approval link not found.")
+        return redirect(url_for("marketplace"))
+
+    except Exception as e:
+        print("paypal_create_order error:", e)
+        flash("Payment could not be started.")
+        return redirect(url_for("marketplace"))
+
+
+@app.route("/paypal/capture-order")
+def paypal_capture_order():
+    if "user_id" not in session:
+        flash("Please log in first.")
+        return redirect(url_for("login"))
+
+    order_id = request.args.get("token")
+    if not order_id:
+        flash("Missing PayPal order reference.")
+        return redirect(url_for("marketplace"))
+
+    try:
+        base, token = _paypal_get_access_token()
+
+        resp = requests.post(
+            f"{base}/v2/checkout/orders/{order_id}/capture",
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json"
+            },
+            timeout=20
+        )
+        resp.raise_for_status()
+        data = resp.json()
+
+        if data.get("status") != "COMPLETED":
+            flash("Payment not completed.")
+            return redirect(url_for("marketplace"))
+
+        # Credit coins (Firestore user docs are keyed by Firebase UID)
+        uid = session.get("user_id")
+        if not uid:
+            flash("User session invalid.")
+            return redirect(url_for("marketplace"))
+
+        user_ref = db.collection("users").document(uid)
+        batch = db.batch()
+        batch.update(user_ref, {
+            "coinBalance": firestore.Increment(250),
+            "updated_at": firestore.SERVER_TIMESTAMP
+        })
+
+        purchase_ref = db.collection("coin_purchases").document(order_id)
+        batch.set(purchase_ref, {
+            "status": "completed",
+            "captured_at": firestore.SERVER_TIMESTAMP
+        }, merge=True)
+
+        batch.commit()
+
+        flash("✅ 250 coins added to your balance.")
+        return redirect(url_for("marketplace"))
+
+    except Exception as e:
+        print("paypal_capture_order error:", e)
+        flash("Payment verification failed.")
+        return redirect(url_for("marketplace"))
 @app.route("/marketplace")
 def marketplace():
     if "user_id" not in session:
@@ -2099,6 +2261,7 @@ def global_league():
         injury_status = "✅" if injuries == 0 else "❌"
 
         all_users.append({
+            "id": user.id, 
             "username": data.get("username", "Unknown"),
             "managerName": data.get("managerName", ""),
             "clubImageUrl": data.get("clubImageUrl", ""),
@@ -2297,7 +2460,7 @@ def api_live_scores():
             continue
 
         predictions[fid] = {
-            "pick": d.get("prediction"),
+            "prediction": d.get("prediction"),
             "btts": d.get("btts"),  # 'Yes' / 'No' / None
             "date": d.get("date")
         }
@@ -2354,7 +2517,7 @@ def api_live_scores():
             away_goals = goals.get("away") or 0
             status = fixture["status"]["short"]  # e.g. NS, 1H, 2H, FT
 
-            pick = predictions.get(fid, {}).get("pick")
+            pick = predictions.get(fid, {}).get("prediction")
             btts_pick = predictions.get(fid, {}).get("btts")
 
             # Evaluate correctness only when the game is live/finished
@@ -2384,7 +2547,7 @@ def api_live_scores():
                 "kickoff": kickoff_str,
                 "dateKey": date_key,
                 "dateLabel": date_label,
-                "userPick": pick,
+                "prediction": pick,
                 "bttsPick": btts_pick,
                 "isCorrectPrediction": correct,
                 "isCorrectBTTS": btts_correct
