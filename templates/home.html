@@ -1,496 +1,385 @@
-{% extends "base.html" %} {% block title %}Dashboard – Stick It In{% endblock %} {% block content %}
-<div class="dashboard-wrap">
-  <header class="page-header" aria-label="Club overview">
-    <h1 class="page-title">Club Home</h1>
+{% extends "base.html" %} {% block title %}Home · Stick It In{% endblock %} {% block content %}
+
+<!-- Tailwind via CDN (quick enable for this page) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: { colors: { navy: { 950: '#022037' } } } } };
+</script>
+<style>
+  html,
+  body {
+    background-color: #020617;
+  } /* slate-950 */
+  body {
+    overflow-x: hidden;
+  }
+</style>
+
+<div class="min-h-screen w-full bg-slate-950 text-slate-100 overflow-x-hidden">
+  <!-- Sticky Header (page-scoped; leaves your site nav intact in base.html) -->
+  <header
+    class="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-slate-950/70 border-b border-slate-800"
+  >
+    <div class="mx-auto max-w-screen-lg px-3 py-2 sm:px-4">
+      <div class="flex items-center justify-between gap-3">
+        <div class="flex items-center gap-3">
+          <div
+            class="h-9 w-9 rounded-xl bg-slate-900 ring-1 ring-slate-800 overflow-hidden flex items-center justify-center"
+          >
+            <img
+              src="{{ club.badgeUrl if club and club.badgeUrl else url_for('static', filename='img/default_badge.png') }}"
+              alt="Club badge"
+              class="h-full w-full object-contain"
+            />
+          </div>
+          <div>
+            <div class="text-sm text-slate-300">Stick It In — Season {{ season_number }}</div>
+            <div class="flex items-center gap-2 text-xs text-slate-400">
+              <span
+                class="inline-flex items-center rounded-full bg-indigo-600/20 px-2 py-0.5 font-semibold text-indigo-300 ring-1 ring-inset ring-indigo-500/30"
+                >Week {{ week_number }}</span
+              >
+              <span class="text-slate-500">•</span>
+              <svg
+                class="opacity-70"
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              <span id="countdown-text">Calculating…</span>
+            </div>
+          </div>
+        </div>
+        <svg
+          class="text-slate-400"
+          width="22"
+          height="22"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          aria-hidden="true"
+        >
+          <path d="M20 21a8 8 0 1 0-16 0" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      </div>
+    </div>
   </header>
 
-  {% if username %}
-  <!-- Club Header -->
-  <section class="club-header" aria-label="Club header">
-    <img
-      src="{{ clubImageUrl or url_for('static', filename='images/logoCircle.png') }}"
-      alt="Club logo"
-      class="club-logo"
-    />
-    <div class="club-meta">
-      <h2 class="club-name">{{ username }}</h2>
-      <p class="welcome-text">Manager: {{ managerName }}</p>
-    </div>
-  </section>
-
-  <!-- KPIs / Quick Actions (compact chip strip) -->
-  <nav class="kpi-strip" aria-label="Quick actions">
-    <a class="kpi-chip" href="/GameEntry" aria-label="Go to Game Entry">
-      <span class="kpi-chip__label">swipe for more -></span>
-    </a>
-    <a class="kpi-chip" href="/GameEntry" aria-label="Go to Game Entry">
-      <span class="kpi-chip__label">Preds Left</span>
-      <span class="kpi-chip__value">{{ prediction_count }}</span>
-    </a>
-    <a class="kpi-chip" href="/GameEntry#btts" aria-label="Go to BTTS section in Game Entry">
-      <span class="kpi-chip__label">BTTS Left</span>
-      <span class="kpi-chip__value">{{ btts_count }}</span>
-    </a>
-    <a class="kpi-chip" href="/teams" aria-label="Open Team Directory">
-      <span class="kpi-chip__label">Team Value</span>
-      <span class="kpi-chip__value">£{{ (team_value|default(0, true))|round(2) }}</span>
-    </a>
-    <a class="kpi-chip" href="/globalleague" aria-label="View Global League table">
-      <span class="kpi-chip__label">League Pos</span>
-      <span class="kpi-chip__value">{{ league_position if league_position else "–" }}</span>
-    </a>
-  </nav>
-
-  <!-- Week Info (sticky on mobile) -->
-  <section class="dash-card week-card" aria-live="polite">
-    <h4>Season {{ season_number }} – Week {{ week_number }}</h4>
-    {% if mode == "prediction_window" %}
-    <p id="week-timer" class="timer">⏳ Time left this week: {{ time_left_str }}</p>
-    {% else %}
-    <p id="week-timer" class="timer warn">⚠️ Match weekend in progress</p>
-    {% endif %}
-  </section>
-
-  <!-- Notifications (enable web push) -->
-  <section class="dash-card" aria-label="Notifications">
-    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap">
-      <strong>Match reminders</strong>
-      <button
-        id="enablePushBtn"
-        class="btn-primary"
-        type="button"
-        style="height: 36px; padding: 0 12px"
-      >
-        Enable notifications
-      </button>
-      <small id="pushStatus" class="muted"></small>
-    </div>
-  </section>
-
-  <!-- Issue a Card -->
-  <section class="dash-card" aria-label="Issue a card">
-    <h3>Issue a Card</h3>
-    {% if available_cards|length == 0 %}
-    <p class="muted">No cards available</p>
-    {% else %}
-    <form id="issueCardForm" class="card-form">
-      <label for="cardType">Card</label>
-      <select id="cardType" name="cardType" required>
-        {% if 'yellow' in available_cards %}
-        <option value="yellow">Yellow</option>
-        {% endif %} {% if 'red' in available_cards %}
-        <option value="red">Red</option>
-        {% endif %} {% if 'injury' in available_cards %}
-        <option value="injury">Injury</option>
-        {% endif %}
-      </select>
-
-      <label for="targetTeam">Target</label>
-      <select id="targetTeam" name="targetTeam" required>
-        {% for user in all_users %} {% if user.user_id != current_user_id %}
-        <option value="{{ user.user_id }}">{{ user.username or 'Unknown' }}</option>
-        {% endif %} {% endfor %}
-      </select>
-
-      <button type="submit" class="btn-primary">Send</button>
-    </form>
-    {% endif %}
-  </section>
-
-  <!-- My Stats Button -->
-  <section class="dash-card" aria-label="User stats">
-    <a href="/me/stats" class="btn-stats">📊 View My Stats</a>
-  </section>
-
-  <!-- Marketplace Button -->
-  <section class="dash-card" aria-label="Marketplace access">
-    <a href="/marketplace" class="btn-marketplace">🛒 Open Marketplace</a>
-  </section>
-
-  <!-- News -->
-  <section class="news-card" aria-label="News and updates">
-    <h4 class="news-title">📢 News & Updates</h4>
-    <ul class="news-list">
-      {% for item in news|reverse %} {% set parts = item.split(' - ', 1) %}
-      <li class="news-item">
-        <div class="news-icon">📰</div>
-        <div class="news-content">
-          {% if parts|length == 2 %}
-          <div class="news-head">
-            <span class="news-date">{{ parts[0] }}</span>
+  <main class="mx-auto w-full max-w-screen-lg px-3 pb-24 sm:px-4">
+    <!-- Weekly Summary -->
+    <section class="mt-3">
+      <div class="rounded-2xl bg-slate-900/60 ring-1 ring-slate-800 p-4">
+        <!-- Primary: Team Value -->
+        <div class="flex items-center justify-between mb-4">
+          <div>
+            <div class="text-xs uppercase tracking-wide text-slate-400">Team Value (£)</div>
+            <div class="text-3xl sm:text-4xl font-extrabold text-cyan-300">
+              {{ "{:,.2f}".format(team_value) if team_value is not none else "0.00" }}
+            </div>
           </div>
-          <div class="news-text">{{ parts[1] }}</div>
-          {% else %}
-          <div class="news-text">{{ item }}</div>
-          {% endif %}
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="text-cyan-400 opacity-80"
+          >
+            <line x1="12" y1="20" x2="12" y2="10" />
+            <line x1="18" y1="20" x2="18" y2="4" />
+            <line x1="6" y1="20" x2="6" y2="16" />
+          </svg>
         </div>
-      </li>
-      {% endfor %}
-    </ul>
-  </section>
 
-  <!-- Card JS -->
-  <script>
-    const form = document.getElementById('issueCardForm');
-    if (form) {
-      form.addEventListener('submit', async (e) => {
-        e.preventDefault();
-        const type = document.getElementById('cardType').value;
-        const target = document.getElementById('targetTeam').value;
-        const res = await fetch(`/issue_card`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ card_type: type, target_user: target }),
-        });
-        const data = await res.json();
-        alert(data.message);
-      });
-    }
-  </script>
-  <script>
-    // Expose current user id to FCM helpers
-    window.__SII_CURRENT_UID = '{{ current_user_id }}';
+        <!-- Secondary stats -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+          <div class="rounded-xl bg-slate-900/70 ring-1 ring-slate-800 p-3">
+            <div class="text-[11px] uppercase tracking-wide text-slate-400">Predictions Left</div>
+            <div class="text-xl font-bold text-emerald-300">
+              {{ prediction_count if prediction_count is not none else 0 }}
+            </div>
+          </div>
 
-    // Wire the enable button to request permission + save token
-    (function () {
-      const btn = document.getElementById('enablePushBtn');
-      const statusEl = document.getElementById('pushStatus');
-      if (!btn) return;
+          <div class="rounded-xl bg-slate-900/70 ring-1 ring-slate-800 p-3">
+            <div class="text-[11px] uppercase tracking-wide text-slate-400">BTTS Left</div>
+            <div class="text-xl font-bold text-amber-300">
+              {{ btts_count if btts_count is not none else 0 }}
+            </div>
+          </div>
 
-      function setStatus(msg) {
-        if (statusEl) statusEl.textContent = msg;
-      }
+          <div class="rounded-xl bg-slate-900/70 ring-1 ring-slate-800 p-3">
+            <div class="text-[11px] uppercase tracking-wide text-slate-400">League Position</div>
+            <div class="text-xl font-bold text-indigo-300">
+              {{ league_position if league_position else "—" }}
+            </div>
+          </div>
 
-      btn.addEventListener('click', async () => {
-        if (!window.requestNotificationPermissionAndSaveToken) {
-          console.warn('[FCM] helper not found: requestNotificationPermissionAndSaveToken');
-          setStatus('FCM not loaded');
-          return;
-        }
-        btn.disabled = true;
-        setStatus('Requesting permission…');
-        try {
-          await window.requestNotificationPermissionAndSaveToken(window.__SII_CURRENT_UID);
-          setStatus('Enabled');
-        } catch (e) {
-          console.error('[FCM] enable error', e);
-          setStatus('Blocked or failed');
-        } finally {
-          btn.disabled = false;
-        }
-      });
-    })();
-  </script>
+          <div class="rounded-xl bg-slate-900/70 ring-1 ring-slate-800 p-3">
+            <div class="text-[11px] uppercase tracking-wide text-slate-400">Community Pot (£)</div>
+            <div class="text-xl font-bold text-emerald-300">
+              {{ "{:,.2f}".format((pot_values|last) if pot_values else 0) }}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
 
-  <!-- Mobile-first styles for this page only -->
-  <style>
-    :root {
-      --ink: #093759;
-      --ink-2: #18304b;
-      --brand: #2066c7;
-      --bg-soft: #f6faff;
-      --line: #e3eaf3;
-      --radius: 14px;
-    }
+    <!-- Actions -->
+    <section class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+      {% if mode == "weekend_lockout" %}
+      <!-- Locked state: button triggers modal -->
+      <div class="block">
+        <button
+          type="button"
+          class="w-full rounded-2xl p-4 text-slate-100 bg-emerald-600/20 ring-1 ring-emerald-500/30 hover:bg-emerald-600/30 transition-colors"
+          onclick="document.getElementById('predictionsModal').classList.remove('hidden')"
+        >
+          <div class="flex items-center gap-3">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <div class="font-semibold">Make My Predictions</div>
+          </div>
+        </button>
+      </div>
+      {% else %}
+      <!-- Normal link when predictions are open -->
+      <a href="{{ url_for('game_entry') }}" class="block">
+        <div
+          class="rounded-2xl p-4 text-slate-100 bg-emerald-600/20 ring-1 ring-emerald-500/30 hover:bg-emerald-600/30 transition-colors"
+        >
+          <div class="flex items-center gap-3">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            <div class="font-semibold">Make My Predictions</div>
+          </div>
+        </div>
+      </a>
+      {% endif %}
 
-    /* --- Compact KPI chips --- */
-    .kpi-strip {
-      display: flex;
-      gap: 10px;
-      overflow-x: auto;
-      -webkit-overflow-scrolling: touch;
-      padding: 2px 2px 6px;
-      scroll-snap-type: x mandatory;
-      margin-bottom: 10px;
-    }
-    .kpi-strip::-webkit-scrollbar {
-      height: 6px;
-    }
-    .kpi-strip::-webkit-scrollbar-thumb {
-      background: var(--brand);
-      border-radius: 6px;
-      transition: background 0.2s;
-    }
-    .kpi-strip::-webkit-scrollbar-thumb:hover {
-      background: #164a8c;
-    }
-    .kpi-chip {
-      flex: 0 0 auto;
-      min-width: 130px;
-      display: grid;
-      grid-template-columns: 1fr auto;
-      align-items: center;
-      gap: 6px;
-      padding: 10px 12px;
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      text-decoration: none;
-      color: inherit;
-      scroll-snap-align: start;
-      box-shadow: 0 1px 4px rgba(9, 55, 89, 0.05);
-    }
-    .kpi-chip:active {
-      transform: translateY(1px);
-    }
-    .kpi-chip__label {
-      font-size: 12px;
-      color: var(--ink-2);
-      letter-spacing: 0.02em;
-    }
-    .kpi-chip__value {
-      font-size: 1.15rem;
-      font-weight: 800;
-      color: var(--ink);
-    }
+      <!-- Live Scores -->
+      <a href="/live-scores" class="block">
+        <div
+          class="rounded-2xl p-4 text-slate-100 bg-amber-600/20 ring-1 ring-amber-500/30 hover:bg-amber-600/30 transition-colors"
+        >
+          <div class="flex items-center gap-3">
+            <svg
+              width="22"
+              height="22"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <rect x="2" y="7" width="20" height="15" rx="2" ry="2"></rect>
+              <polyline points="17 2 12 7 7 2"></polyline>
+            </svg>
+            <div class="font-semibold">Live Scores</div>
+          </div>
+        </div>
+      </a>
+    </section>
 
-    .page-header {
-      text-align: center;
-      margin: 16px 0 10px;
-    }
-    .page-title {
-      font-size: 1.75rem;
-      font-weight: 800;
-      color: var(--ink);
-    }
+    <!-- Community Pot Growth (full chart) -->
+    <section class="mt-6">
+      <div class="rounded-2xl bg-slate-900/60 ring-1 ring-slate-800 p-3 sm:p-4">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-base font-semibold">Community Pot Growth</h2>
+          <div class="flex items-center gap-2 text-sm text-slate-300">
+            <span class="inline-block h-2 w-2 rounded bg-emerald-400"></span> Total Pot (£)
+          </div>
+        </div>
+        <canvas
+          id="potChart"
+          class="w-full max-h-[220px]"
+          height="200"
+          style="max-height: 220px"
+        ></canvas>
+        <p class="mt-2 text-xs text-slate-400">
+          Transparent by design: this season’s graph is public to show the system working.
+        </p>
+      </div>
+    </section>
 
-    .club-header {
-      display: grid;
-      grid-template-columns: 56px 1fr;
-      gap: 12px;
-      align-items: center;
-      padding: 10px 12px;
-      background: var(--bg-soft);
-      border-radius: var(--radius);
-      box-shadow: 0 1px 6px rgba(9, 55, 89, 0.04);
-      margin-bottom: 10px;
-    }
-    .club-logo {
-      width: 56px;
-      height: 56px;
-      border-radius: 50%;
-      object-fit: cover;
-    }
-    .club-name {
-      margin: 0;
-      font-size: 1.2rem;
-      color: var(--ink);
-    }
-    .welcome-text {
-      margin: 2px 0 0;
-      color: var(--ink-2);
-      opacity: 0.85;
-    }
+    <!-- Press Conference -->
+    <section class="mt-6">
+      <div class="mb-2 flex items-center gap-2">
+        <svg
+          class="text-slate-300"
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M19 20H5a2 2 0 0 1-2-2V7" />
+          <path d="M21 8v9a2 2 0 0 1-2 2" />
+          <path d="M7 9h10" />
+          <path d="M7 13h10" />
+          <path d="M7 17h8" />
+          <path d="M3 7V6a2 2 0 0 1 2-2h12" />
+        </svg>
+        <h2 class="text-base font-semibold">Press Conference</h2>
+      </div>
+      <div
+        class="rounded-2xl bg-slate-900/60 ring-1 ring-slate-800 p-2 sm:p-3 max-h-[420px] overflow-auto"
+      >
+        <ol class="relative ml-2 border-l border-slate-800 pl-4">
+          {% for item in news|reverse %}
+          <li class="mb-4">
+            <div
+              class="absolute -left-1.5 mt-1 h-3 w-3 rounded-full bg-indigo-500 ring-2 ring-slate-900"
+            ></div>
+            <div class="text-xs text-slate-400">
+              {{ item.split(" - ")[0] if " - " in item else "" }}
+            </div>
+            <div class="text-sm leading-5 text-slate-200">
+              {{ item if " - " not in item else item.split(" - ", 1)[1] }}
+            </div>
+          </li>
+          {% endfor %} {% if not news %}
+          <li class="text-sm text-slate-400">
+            No announcements yet. Check back after this week’s fixtures.
+          </li>
+          {% endif %}
+        </ol>
+      </div>
+    </section>
+  </main>
 
-    /* Cards grid – single column by default; grows on larger screens */
-    .kpi-grid {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 12px;
-    }
-
-    .dash-card {
-      background: #fff;
-      border-radius: var(--radius);
-      padding: 12px 14px;
-      box-shadow: 0 1px 4px rgba(9, 55, 89, 0.05);
-    }
-
-    .dash-link {
-      display: block;
-      text-decoration: none;
-      color: inherit;
-    }
-    .dash-link:focus,
-    .dash-link:hover {
-      box-shadow: 0 0 0 3px rgba(32, 102, 199, 0.18);
-      outline: none;
-    }
-
-    .dash-card h3 {
-      margin: 0 0 6px;
-      font-size: 1rem;
-      color: var(--ink-2);
-      font-weight: 700;
-    }
-    .big {
-      font-size: 1.35rem;
-      font-weight: 800;
-      color: var(--ink);
-    }
-
-    .week-card {
-      position: sticky;
-      top: calc(env(safe-area-inset-top) + 8px);
-      z-index: 1;
-      margin-top: 10px;
-    }
-    .week-card h4 {
-      margin: 0 0 6px;
-      color: var(--brand);
-      font-size: 1rem;
-    }
-    .timer {
-      font-weight: 700;
-      margin: 0;
-    }
-    .timer.warn {
-      color: #b45309;
-    }
-
-    .card-form {
-      display: grid;
-      gap: 8px;
-    }
-    .card-form label {
-      font-weight: 600;
-      color: var(--ink-2);
-    }
-    .card-form select,
-    .card-form button {
-      height: 44px;
-      font-size: 1rem;
-    }
-    .card-form select {
-      padding: 6px 10px;
-      border: 1px solid var(--line);
-      border-radius: 10px;
-    }
-    .btn-primary {
-      background: var(--brand);
-      color: #fff;
-      border: 0;
-      border-radius: 10px;
-    }
-    .muted {
-      color: var(--ink-2);
-      opacity: 0.7;
-    }
-
-    .news-card {
-      background: var(--bg-soft);
-      padding: 16px;
-      border-radius: var(--radius);
-      margin-top: 10px;
-      box-shadow: 0 1px 6px rgba(9, 55, 89, 0.04);
-    }
-    .news-title {
-      color: var(--brand);
-      font-weight: 800;
-      font-size: 1.1rem;
-      margin: 0 0 12px;
-      letter-spacing: 0.01em;
-    }
-    .news-list {
-      list-style: none;
-      padding: 0;
-      margin: 0;
-      display: grid;
-      gap: 10px;
-    }
-    .news-item {
-      display: grid;
-      grid-template-columns: 36px 1fr;
-      gap: 10px;
-      align-items: start;
-      background: #fff;
-      border: 1px solid var(--line);
-      border-radius: 12px;
-      padding: 10px 12px;
-      box-shadow: 0 1px 4px rgba(9, 55, 89, 0.06);
-    }
-    .news-item:hover {
-      box-shadow: 0 3px 12px rgba(9, 55, 89, 0.08);
-    }
-    .news-icon {
-      width: 36px;
-      height: 36px;
-      border-radius: 50%;
-      display: grid;
-      place-items: center;
-      background: #eef5ff;
-      font-size: 18px;
-    }
-    .news-content {
-      display: grid;
-      gap: 4px;
-    }
-    .news-head {
-      display: flex;
-      gap: 8px;
-      align-items: baseline;
-    }
-    .news-date {
-      display: inline-block;
-      font-weight: 800;
-      color: var(--ink);
-      background: #edf2f7;
-      border-radius: 999px;
-      padding: 2px 8px;
-      font-size: 12px;
-    }
-    .news-text {
-      color: var(--ink-2);
-      font-weight: 600;
-      line-height: 1.35;
-    }
-
-    /* Larger screens */
-    @media (min-width: 700px) {
-      .page-title {
-        font-size: 2rem;
-      }
-      .kpi-grid {
-        grid-template-columns: repeat(2, 1fr);
-      }
-    }
-    @media (min-width: 1024px) {
-      .kpi-grid {
-        grid-template-columns: repeat(4, 1fr);
-      }
-    }
-
-    .btn-marketplace {
-      display: block;
-      text-align: center;
-      background: #f6a816; /* changed to brand blue */
-      color: #fff;
-      padding: 12px;
-      border-radius: 10px;
-      font-weight: 700;
-      text-decoration: none;
-      font-size: 1.1rem;
-      margin-top: 8px;
-    }
-    .btn-marketplace:hover {
-      background: #8d600d;
-    }
-
-    .btn-stats {
-      display: block;
-      text-align: center;
-      background: #16a34a; /* green highlight */
-      color: #fff;
-      padding: 12px;
-      border-radius: 10px;
-      font-weight: 700;
-      text-decoration: none;
-      font-size: 1.1rem;
-      margin-top: 8px;
-    }
-    .btn-stats:hover {
-      background: #15803d;
-    }
-  </style>
-
-  {% else %}
-  <div class="empty" style="text-align: center; padding: 60px">
-    <h2>👋 Welcome!</h2>
-    <p>
-      Set up your team name and manager name on your <a href="/profile">Profile</a> page to get
-      started.
-    </p>
+  <!-- Predictions Locked Modal -->
+  <div
+    id="predictionsModal"
+    class="hidden fixed inset-0 z-50 flex items-center justify-center bg-slate-900/70"
+  >
+    <div class="bg-slate-800 rounded-xl p-4 max-w-xs w-full ring-1 ring-slate-700">
+      <h3 class="text-lg font-semibold mb-2">Predictions Unavailable</h3>
+      <p class="text-sm text-slate-300 mb-4">
+        Predictions are open Monday to Friday only. The window reopens next week.
+      </p>
+      <button
+        type="button"
+        class="w-full rounded-md bg-emerald-600/20 ring-1 ring-emerald-500/30 py-2 text-emerald-200 hover:bg-emerald-600/30 transition-colors"
+        onclick="document.getElementById('predictionsModal').classList.add('hidden')"
+      >
+        OK
+      </button>
+    </div>
   </div>
-  {% endif %}
 </div>
+
+<!-- Chart.js for the line chart -->
+<script
+  src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"
+  crossorigin="anonymous"
+></script>
+<script>
+  // Countdown to Sunday 23:59 (local)
+  (function countdown(){
+    const el = document.getElementById('countdown-text');
+    function nextSundayEnd() { const now = new Date(); const d = new Date(now); const day = d.getDay(); const diff = (7 - day) % 7; d.setDate(d.getDate() + diff); d.setHours(23,59,0,0); return d; }
+    function tick(){ const target = nextSundayEnd(); const now = new Date(); const ms = target - now; if (ms <= 0) { el.textContent = 'Closes soon'; return; } const m = Math.floor(ms/60000), h = Math.floor(m/60), d = Math.floor(h/24); const hh = h - d*24, mm = m - h*60; el.textContent = `Time left: ${d}d ${hh}h ${mm}m`; }
+    tick(); setInterval(tick, 60000);
+  })();
+
+  // Intro fade-in
+  document.querySelectorAll('[data-animate]').forEach((el, i) => {
+    setTimeout(() => { el.classList.remove('opacity-0'); }, 60 + i*60);
+  });
+
+  // Sparkline for community pot
+  (function spark(){
+    const svg = document.getElementById('pot-spark'); if (!svg) return;
+    let series = []; try { series = JSON.parse(svg.dataset.series || '[]'); } catch(e) {}
+    if (!Array.isArray(series) || !series.length) return;
+    const w = 64, h = 24; const max = Math.max(...series), min = Math.min(...series); const span = Math.max(1, max - min); const stepX = w / Math.max(1, series.length - 1);
+    const pts = series.map((v,i)=>[i*stepX, h - ((v - min)/span)*h]);
+    const d = pts.map((p,i)=> i? `L ${p[0]},${p[1]}` : `M ${p[0]},${p[1]}`).join(' ');
+    document.getElementById('pot-spark-path').setAttribute('d', d);
+  })();
+
+  // Community Pot Growth (full chart)
+  (function potChart(){
+    const labels = {{ (pot_labels if pot_labels else []) | tojson }};
+    const values = {{ (pot_values if pot_values else []) | tojson }};
+    const ctx = document.getElementById('potChart');
+    if (!ctx || !labels.length || !values.length) return;
+    new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: 'Total Pot (£)',
+          data: values,
+          fill: true,
+          tension: 0.35,
+          pointRadius: 1.8,
+          borderWidth: 2,
+          borderColor: '#34d399',
+          backgroundColor: 'rgba(52, 211, 153, 0.12)'
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        aspectRatio: 2.6,
+        plugins: { legend: { display: false } },
+        scales: {
+          x: {
+            title: { display: true, text: 'Week', color: '#cbd5e1' },
+            grid: { color: 'rgba(148,163,184,0.12)' },
+            ticks: { color: '#cbd5e1' }
+          },
+          y: {
+            title: { display: true, text: '£', color: '#cbd5e1' },
+            grid: { color: 'rgba(148,163,184,0.12)' },
+            ticks: { color: '#cbd5e1' },
+            beginAtZero: true
+          }
+        }
+      }
+    });
+  })();
+</script>
+
 {% endblock %}

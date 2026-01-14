@@ -19,6 +19,18 @@
   .day-section {
     margin-bottom: 14px;
   }
+  .pick {
+    margin-top: 2px;
+    font-size: 12px;
+    color: #64748b;
+  }
+  .leftcol {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    flex: 1;
+  }
 </style>
 
 <!-- Legend -->
@@ -34,6 +46,19 @@
 <div id="fixtures"></div>
 {% endblock %} {% block scripts %}
 <script>
+  function prettyPick(p) {
+    if (!p) return '—';
+
+    // Handle nested objects or Firestore-style values defensively
+    const raw = typeof p === 'object' && p.prediction ? p.prediction : p;
+
+    const v = String(raw).toLowerCase();
+    if (v === 'home') return 'Home';
+    if (v === 'away') return 'Away';
+    if (v === 'draw') return 'Draw';
+    return raw;
+  }
+
   function html(strings, ...vals) {
     return strings.map((s, i) => s + (vals[i] ?? '')).join('');
   }
@@ -155,7 +180,7 @@
           const badge = live
             ? `<span class="badge">LIVE</span>`
             : f.time === 'NS'
-            ? `<span class="kick">${f.kickoff ?? ''}</span>`
+            ? ''
             : `<span class="kick">${f.time ?? ''}</span>`;
 
           const bttsDot = f.bttsPick
@@ -168,10 +193,13 @@
             'beforeend',
             html`
               <div class="fixture ${status}">
-                <div class="teams">
-                  <span>${f.team1 ?? '?'}</span>
-                  <span class="vs">vs</span>
-                  <span>${f.team2 ?? '?'}</span>
+                <div class="leftcol">
+                  <div class="teams">
+                    <span>${f.team1 ?? '?'}</span>
+                    <span class="vs">vs</span>
+                    <span>${f.team2 ?? '?'}</span>
+                  </div>
+                  <div class="pick">You picked: ${prettyPick(f.prediction)}</div>
                 </div>
                 <div class="info">
                   <div class="score">${f.score1 ?? '-'} – ${f.score2 ?? '-'}</div>

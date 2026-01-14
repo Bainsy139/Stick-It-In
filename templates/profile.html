@@ -13,6 +13,24 @@
     <p style="padding: 8px; border: 1px solid #e3eaf3; border-radius: 10px">{{ msgs[-1] }}</p>
     {% endif %} {% endwith %}
 
+    <!-- Profile summary (read-only) -->
+    <section
+      class="card"
+      style="padding: 16px; border: 1px solid #e3eaf3; border-radius: 12px; background: #fff"
+    >
+      <h2 style="margin: 0 0 8px">Overview</h2>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+        <div>
+          <div style="color: #6b7280; font-size: 12px">Team Value (£)</div>
+          <div style="font-weight: 700; font-size: 18px">£{{ '%.2f'|format(teamValue or 0) }}</div>
+        </div>
+        <div>
+          <div style="color: #6b7280; font-size: 12px">Predictions left</div>
+          <div style="font-weight: 700; font-size: 18px">{{ predictionCount }}</div>
+        </div>
+      </div>
+    </section>
+
     <!-- Identity -->
     <section
       class="card"
@@ -50,6 +68,46 @@
           Save
         </button>
       </form>
+    </section>
+
+    <!-- Performance (read-only) -->
+    <section
+      class="card"
+      style="padding: 16px; border: 1px solid #e3eaf3; border-radius: 12px; background: #fff"
+    >
+      <h2 style="margin: 0 0 8px">Season performance</h2>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+        <div>
+          <div style="color: #6b7280; font-size: 12px">Predictions</div>
+          <div>{{ correctPredictions }} / {{ totalPredictions }}</div>
+        </div>
+        <div>
+          <div style="color: #6b7280; font-size: 12px">BTTS</div>
+          <div>{{ correctBTTS }} / {{ totalBTTS }}</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Team status (read-only) -->
+    <section
+      class="card"
+      style="padding: 16px; border: 1px solid #e3eaf3; border-radius: 12px; background: #fff"
+    >
+      <h2 style="margin: 0 0 8px">Team status</h2>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px">
+        <div>
+          <strong>Yellow cards</strong><br />
+          {{ yellowCardsReceived }} received · {{ yellowCardsAvailable }} available
+        </div>
+        <div>
+          <strong>Red cards</strong><br />
+          {{ redCardsReceived }} received · {{ redCardsAvailable }} available
+        </div>
+        <div>
+          <strong>Injuries</strong><br />
+          {{ injuriesReceived }} received · {{ injuriesAvailable }} available
+        </div>
+      </div>
     </section>
 
     <!-- Account -->

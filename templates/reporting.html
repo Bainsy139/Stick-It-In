@@ -67,38 +67,54 @@ content %}
       background: #e6f7ff;
       color: #075985;
     }
-    .comments {
-      margin-top: 10px;
-      padding-top: 10px;
-      border-top: 1px solid #e5e7eb;
+
+    /* ---- V3-lite visual polish (non-destructive) ---- */
+
+    /* Page background stays light; cards get premium contrast */
+    body {
+      background: #f5f7fb;
     }
-    .comment {
-      font-size: 14px;
-      margin: 8px 0;
-    }
-    .comment .author {
-      font-weight: 700;
-      color: #0f172a;
-    }
-    .comment-form {
-      display: flex;
-      gap: 8px;
-      margin-top: 8px;
-    }
-    .comment-form textarea {
-      flex: 1;
-      min-height: 36px;
-      padding: 8px;
-      border-radius: 6px;
+
+    /* Cards feel more “club edition” */
+    .press-card {
       border: 1px solid #e5e7eb;
+      box-shadow: 0 6px 18px rgba(2, 6, 23, 0.06);
     }
-    .comment-form button {
-      padding: 8px 12px;
-      border-radius: 6px;
-      background: #093759;
-      color: #fff;
-      border: none;
+
+    /* Headline reads cleaner */
+    .press-msg {
       font-weight: 700;
+      letter-spacing: 0.1px;
+    }
+
+    /* Meta fades back slightly */
+    .press-meta {
+      color: #64748b;
+    }
+
+    /* Badges: calmer, more intentional */
+    .badge {
+      font-size: 11px;
+      letter-spacing: 0.4px;
+      text-transform: uppercase;
+    }
+
+    /* Yellow */
+    .badge-yellow {
+      background: #fff3c4;
+      color: #7a5d00;
+    }
+
+    /* Red */
+    .badge-red {
+      background: #ffd6d6;
+      color: #9f1d1d;
+    }
+
+    /* Injury */
+    .badge-injury {
+      background: #dff3ff;
+      color: #075985;
     }
   </style>
 
@@ -115,23 +131,6 @@ content %}
     <div class="press-meta">
       {{ r.actor_username }} → {{ r.target_username }} · {{ r.ts.strftime('%d/%m at %-I:%M%p') if
       r.ts }}
-    </div>
-
-    <div class="comments">
-      {% if r.comments %} {% for c in r.comments %}
-      <div class="comment"><span class="author">{{ c.author_username }}</span>: {{ c.text }}</div>
-      {% endfor %} {% else %}
-      <div class="comment" style="color: #64748b">No comments yet.</div>
-      {% endif %}
-
-      <form
-        class="comment-form"
-        method="POST"
-        action="{{ url_for('add_press_comment', report_id=r.id) }}"
-      >
-        <textarea name="text" placeholder="Add a comment…" maxlength="280" required></textarea>
-        <button type="submit">Post</button>
-      </form>
     </div>
   </div>
   {% endfor %} {% else %}

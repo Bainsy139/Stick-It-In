@@ -22,6 +22,7 @@ venv/
 instance/
 *.db
 *.sqlite3
+flask_session/
 
 # --- Credentials / Keys (never commit) ---
 *.pem
@@ -34,6 +35,7 @@ firebase-key*.json
 credentials*.json
 firebase_key.json
 firebase_key_path/
+web_api_key.txt
 
 # --- Frontend / Builds ---
 node_modules/
@@ -51,3 +53,8 @@ coverage.xml
 
 # --- Misc caches ---
 .cache/
+
+static/firebase-init.js
+
+Recreate/
+the/

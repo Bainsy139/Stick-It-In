@@ -1,228 +1,387 @@
 {% extends "base.html" %} {% block title %}League Standings – Stick It In{% endblock %} {% block
 content %}
-<div class="container" style="max-width: 1000px; margin: 40px auto; padding: 0 20px">
-  <h1 style="text-align: center; color: #093759; font-size: 2rem; margin-bottom: 30px">
-    League Standings
-  </h1>
-  <p class="view-hint">
-    For full details (cards & accuracy), rotate your phone or view in landscape.
-  </p>
 
-  <table class="league-table">
-    <thead>
-      <tr>
-        <th class="col-rank" style="background-color: #093759; color: #fff; font-weight: 600">
-          Rank
-        </th>
-        <th class="col-club" style="background-color: #093759; color: #fff; font-weight: 600">
-          Team
-        </th>
-        <th
-          class="col-games"
-          title="Games Predicted this Season (Max: 10 per week)"
-          style="background-color: #093759; color: #fff"
+<!-- Tailwind (page-scoped, CDN for now) -->
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = { theme: { extend: { colors: { navy: { 950: '#0b1020' } } } } };
+</script>
+
+<div class="min-h-screen bg-slate-950 text-slate-100">
+  <!-- Header strip -->
+  <header
+    class="sticky top-0 z-30 backdrop-blur supports-[backdrop-filter]:bg-slate-950/70 border-b border-slate-800"
+  >
+    <div class="mx-auto max-w-screen-lg px-3 py-2 sm:px-4">
+      <div class="flex items-center justify-between">
+        <h1 class="text-base font-semibold">League Standings</h1>
+        <a href="{{ url_for('home') }}" class="text-slate-300 text-sm hover:text-white">Home</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-screen-lg px-3 py-4 sm:px-4">
+    <p class="text-center text-slate-400 text-sm mb-3">
+      Go to your profile to view cards received and available.
+    </p>
+
+    <!-- CTAs: Marketplace + Issue Card -->
+    <div class="mb-3 flex flex-wrap items-center gap-2 justify-center sm:justify-between">
+      <div class="flex gap-2">
+        <a
+          href="/marketplace"
+          class="inline-flex items-center gap-2 rounded-xl bg-emerald-600/20 ring-1 ring-emerald-500/30 px-3 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-600/30"
         >
-          Games
-        </th>
-        <th
-          class="col-correct"
-          title="Correct Predictions Only"
-          style="background-color: #093759; color: #fff"
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="opacity-90"
+          >
+            <path d="M3 9l1 11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2l1-11" />
+            <path d="M5 9h14" />
+            <path d="M7 9V7a5 5 0 0 1 10 0v2" />
+          </svg>
+          Marketplace
+        </a>
+        <button
+          type="button"
+          id="open-issue-card-generic"
+          class="inline-flex items-center gap-2 rounded-xl bg-slate-900/60 ring-1 ring-slate-700 px-3 py-2 text-sm font-semibold text-slate-200 hover:bg-slate-800"
         >
-          Correct
-        </th>
-        <th
-          class="col-accuracy"
-          title="(Correct Predictions / Total Predictions) * 100"
-          style="background-color: #093759; color: #fff"
-        >
-          Accuracy
-        </th>
-        <th
-          class="col-yellow"
-          title="Yellow Cards Received this Season"
-          style="background-color: #093759; color: #fff"
-        >
-          🟡
-        </th>
-        <th
-          class="col-red"
-          title="Red Cards Received this Season"
-          style="background-color: #093759; color: #fff"
-        >
-          🔴
-        </th>
-        <th
-          class="col-injury"
-          title="Injury Status (Yes/No)"
-          style="background-color: #093759; color: #fff"
-        >
-          ☠️
-        </th>
-        <th
-          class="col-points"
-          title="Adjusted Points (Deducts Yellow & Red Cards)"
-          style="background-color: #093759; color: #fff"
-        >
-          Points
-        </th>
-      </tr>
-    </thead>
-    <tbody>
-      {% if show_empty_msg %}
-      <tr>
-        <td colspan="9" style="text-align: center; padding: 20px; font-size: 1rem; color: #888">
-          🆕 New Season Underway – Make 10 Predictions to Enter the League!
-        </td>
-      </tr>
-      {% endif %} {% for user in all_users %}
-      <tr
-        class="league-row {% if user.username == current_user.username %}highlight-you{% endif %}"
+          <svg
+            width="18"
+            height="18"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            class="opacity-90"
+          >
+            <rect x="3" y="5" width="18" height="14" rx="2" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+            <circle cx="8" cy="15" r="1" />
+            <circle cx="12" cy="15" r="1" />
+            <circle cx="16" cy="15" r="1" />
+          </svg>
+          Issue Card
+        </button>
+      </div>
+      <div class="text-xs text-slate-400 hidden sm:block">
+        Use the league context to trade or issue penalties.
+      </div>
+    </div>
+
+    <!-- Responsive table shell -->
+    <div class="overflow-x-auto rounded-2xl ring-1 ring-slate-800 bg-slate-900/60">
+      <table class="min-w-full text-sm">
+        <thead class="sticky top-[46px] sm:top-[52px] bg-slate-900/90 backdrop-blur z-20">
+          <tr class="text-left text-slate-300">
+            <th class="px-3 py-2.5 w-14">Rank</th>
+            <th class="px-3 py-2.5 min-w-[180px]">Team</th>
+            <th class="px-3 py-2.5 w-20">Games</th>
+            <th class="px-3 py-2.5 w-36 hidden sm:table-cell">Accuracy</th>
+            <th class="px-3 py-2.5 w-24 text-right">Points</th>
+            <th class="px-3 py-2.5 w-14 text-right">Act</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr id="thead-spacer" style="height: 0"></tr>
+          {% if show_empty_msg %}
+          <tr>
+            <td colspan="9" class="px-3 py-4 text-center text-slate-400">
+              🆕 New Season Underway – Make 10 Predictions to Enter the League!
+            </td>
+          </tr>
+          {% endif %} {% for user in all_users %}
+          <tr
+            class="border-t border-slate-800 hover:bg-slate-800/40 {% if user.username == current_user.username %}outline outline-2 outline-sky-500/60 -outline-offset-2{% endif %}"
+          >
+            <td
+              class="px-3 py-2.5 font-semibold {% if user.rank == 1 %}text-yellow-300{% elif user.rank == 2 %}text-slate-200{% elif user.rank == 3 %}text-amber-500{% else %}text-slate-100{% endif %}"
+            >
+              {{ user.rank }}
+            </td>
+            <td class="px-3 py-2.5">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="truncate font-medium text-slate-100">{{ user.username }}</span>
+              </div>
+            </td>
+            <td class="px-3 py-2.5 text-slate-200">{{ user.games_predicted }}</td>
+            <td class="px-3 py-2.5 hidden sm:table-cell">
+              <div class="flex items-center gap-2">
+                <div class="relative h-2 w-28 rounded bg-slate-800 overflow-hidden">
+                  {% set pct = user.accuracy %}
+                  <div class="h-full bg-emerald-400" style="width: {{ pct }}%"></div>
+                </div>
+                <span class="tabular-nums text-slate-200">{{ user.accuracy }}%</span>
+              </div>
+            </td>
+            <td class="px-3 py-2.5 text-right font-semibold">{{ user.adjusted_points }}</td>
+            <td class="px-3 py-2.5 text-right">
+              <button
+                type="button"
+                class="issue-btn inline-flex items-center justify-center rounded-lg bg-indigo-600/20 ring-1 ring-indigo-500/30 px-2 py-1 text-xs text-indigo-200 hover:bg-indigo-600/30"
+                data-user-id="{{ user.id or user.user_id or user.uid }}"
+                data-username="{{ user.username or user.club_name or user.clubName }}"
+                title="Issue a card to {{ user.username or user.club_name or user.clubName }}"
+              >
+                ⚡
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      <script>
+        (function fixStickyOverlap() {
+          const table = document.querySelector('.overflow-x-auto table');
+          const thead = table ? table.querySelector('thead') : null;
+          const spacer = table ? table.querySelector('#thead-spacer') : null;
+          if (!thead || !spacer) return;
+          function apply() {
+            // height of the sticky head plus 1px border buffer
+            const h = Math.ceil(thead.getBoundingClientRect().height) + 1;
+            spacer.style.height = h + 'px';
+          }
+          // run now and on resize (and after fonts load)
+          apply();
+          let ro;
+          try {
+            ro = new ResizeObserver(apply);
+            ro.observe(thead);
+          } catch (e) {
+            /* noop */
+          }
+          window.addEventListener('resize', apply);
+          window.addEventListener('load', apply);
+        })();
+      </script>
+    </div>
+
+    <!-- Issue Card Modal -->
+    <div id="issueCardModal" class="fixed inset-0 z-40 hidden">
+      <div class="absolute inset-0 bg-black/60"></div>
+      <div class="absolute inset-0 flex items-end sm:items-center justify-center p-3">
+        <div class="w-full max-w-md rounded-2xl bg-slate-900 ring-1 ring-slate-700 shadow-xl">
+          <div class="flex items-center justify-between px-4 py-3 border-b border-slate-800">
+            <h3 class="text-base font-semibold">Issue Card</h3>
+            <button id="issueClose" class="text-slate-300 hover:text-white" aria-label="Close">
+              ✕
+            </button>
+          </div>
+          <form id="issueForm" action="/issue_card" method="post" class="px-4 pb-4 pt-3 space-y-3">
+            <input type="hidden" name="target_user" id="issueTargetId" />
+            <div>
+              <label class="block text-sm text-slate-400 mb-1">To</label>
+              <input
+                id="issueTargetName"
+                class="w-full rounded-lg bg-slate-950 ring-1 ring-slate-700 px-3 py-2 text-slate-200"
+                value=""
+                readonly
+              />
+            </div>
+            <div>
+              <label class="block text-sm text-slate-400 mb-1">Card Type</label>
+              <select
+                name="card_type"
+                id="issueCardType"
+                class="w-full rounded-lg bg-slate-950 ring-1 ring-slate-700 px-3 py-2 text-slate-200"
+              >
+                {% if available_cards is defined %}
+                  {% set _allowed = available_cards %}
+                {% else %}
+                  {% set _allowed = none %}
+                {% endif %}
+                <option value="yellow" {% if _allowed is not none and 'yellow' not in _allowed %}disabled{% endif %}>Yellow Card</option>
+                <option value="red" {% if _allowed is not none and 'red' not in _allowed %}disabled{% endif %}>Red Card</option>
+                <option value="injury" {% if _allowed is not none and 'injury' not in _allowed %}disabled{% endif %}>Injury</option>
+              </select>
+              <p id="noCardsMsg" class="mt-2 text-sm text-amber-300 hidden">
+                You have no cards available to issue right now.
+              </p>
+            </div>
+            <div class="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                id="issueCancel"
+                class="rounded-lg bg-slate-800 px-3 py-2 text-sm text-slate-200 hover:bg-slate-700"
+              >
+                Cancel
+              </button>
+              <button
+                id="issueConfirmBtn"
+                type="submit"
+                class="rounded-lg bg-emerald-600/20 ring-1 ring-emerald-500/30 px-3 py-2 text-sm font-semibold text-emerald-200 hover:bg-emerald-600/30 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Confirm
+              </button>
+              <input type="hidden" name="redirect_to" value="/globalleague" />
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // Build a simple username -> id index from Jinja context
+      window.SII_USER_INDEX = (function(){
+        try {
+          const arr = {{ (all_users or []) | tojson }};
+          const map = new Map();
+          (arr || []).forEach(u => {
+            const id = u.id || u.user_id || u.uid || '';
+            const name = u.username || u.club_name || u.clubName || '';
+            if (id && name && !map.has(name)) map.set(name, id);
+          });
+          return map;
+        } catch(e) { return new Map(); }
+      })();
+    </script>
+    <script>
+      // Modal controller for issuing cards
+      (function issueCardModal(){
+        const modal = document.getElementById('issueCardModal');
+        const openGeneric = document.getElementById('open-issue-card-generic');
+        const closeBtn = document.getElementById('issueClose');
+        const cancelBtn = document.getElementById('issueCancel');
+        const form = document.getElementById('issueForm');
+        const targetId = document.getElementById('issueTargetId');
+        const targetName = document.getElementById('issueTargetName');
+        const cardType = document.getElementById('issueCardType');
+        const confirmBtn = document.getElementById('issueConfirmBtn');
+        const noCardsMsg = document.getElementById('noCardsMsg');
+
+        function open(id = '', name = ''){
+          targetId.value = id;
+          if (!targetId.value && name && window.SII_USER_INDEX) {
+            const found = window.SII_USER_INDEX.get(name);
+            if (found) targetId.value = found;
+          }
+          targetName.value = name || '';
+          if (!targetName.value && targetId.value && window.SII_USER_INDEX) {
+            // try to reverse-lookup name
+            for (const [n, i] of window.SII_USER_INDEX.entries()) { if (i === targetId.value) { targetName.value = n; break; } }
+          }
+          modal.classList.remove('hidden');
+          // Optional: focus first field
+          setTimeout(()=> cardType.focus(), 20);
+        }
+        function close(){ modal.classList.add('hidden'); }
+
+        document.querySelectorAll('.issue-btn').forEach(btn => {
+          btn.addEventListener('click', () => open(btn.dataset.userId, btn.dataset.username));
+        });
+        if(openGeneric){ openGeneric.addEventListener('click', () => open('', '')); }
+        if(closeBtn){ closeBtn.addEventListener('click', close); }
+        if(cancelBtn){ cancelBtn.addEventListener('click', close); }
+        modal.addEventListener('click', (e)=>{ if(e.target === modal.firstElementChild) close(); });
+
+        // Optional: disable unauthorised card types if provided from backend
+        try {
+          const allowed = {{ 'null' if available_cards is not defined else (available_cards | tojson) }}; // null => unknown, don't gate
+          // If backend didn't pass `available_cards`, do nothing. If it did, enforce it.
+          if (Array.isArray(allowed)) {
+            Array.from(cardType.options).forEach(opt => { opt.disabled = allowed.length ? !allowed.includes(opt.value) : true; });
+            if (confirmBtn) confirmBtn.disabled = (allowed.length === 0);
+            if (noCardsMsg) noCardsMsg.classList.toggle('hidden', allowed.length !== 0);
+          } else {
+            // Unknown: leave all options enabled and allow confirm
+            Array.from(cardType.options).forEach(opt => { opt.disabled = false; });
+            if (confirmBtn) confirmBtn.disabled = false;
+            if (noCardsMsg) noCardsMsg.classList.add('hidden');
+          }
+          try { console.debug('available_cards=', allowed); } catch(_) {}
+        } catch(e) {}
+
+        // TODO: CSRF token, errors, etc. For now, plain POST.
+
+        // Intercept submit and send JSON to /issue_card
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const payload = {
+            card_type: cardType.value,
+            target_user: targetId.value || null,
+          };
+          // Basic guard
+          if (!payload.card_type) { alert('Select a card type.'); return; }
+          if (!payload.target_user) { alert('Pick a recipient.'); return; }
+
+          // Disable buttons while sending
+          const submitBtn = form.querySelector('button[type="submit"]');
+          const prevTxt = submitBtn.textContent;
+          submitBtn.disabled = true; submitBtn.textContent = 'Sending…';
+
+          try {
+            const res = await fetch('/issue_card', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify(payload),
+            });
+
+            // Try to parse JSON, but fall back to plain success on 200/204
+            let data = null;
+            try { data = await res.json(); } catch(_) {}
+
+            if (res.ok) {
+              // Close modal and reload league (or use server-provided redirect)
+              close();
+              const redirect = (data && data.redirect_to) || '/globalleague';
+              window.location.assign(redirect);
+              return;
+            }
+
+            // Not OK → show message
+            const msg = (data && (data.error || data.message)) || `Error ${res.status}`;
+            alert(msg);
+          } catch (err) {
+            console.error(err);
+            alert('Network error while issuing card.');
+          } finally {
+            submitBtn.disabled = false; submitBtn.textContent = prevTxt;
+          }
+        });
+      })();
+    </script>
+
+    <!-- Legend -->
+    <div class="mt-3 flex flex-wrap items-center gap-4 text-xs text-slate-400">
+      <span class="inline-flex items-center gap-1"
+        ><span class="h-2 w-2 rounded-full bg-yellow-300 inline-block"></span> 1st</span
       >
-        <td
-          class="col-rank {% if user.rank == 1 %}gold{% elif user.rank == 2 %}silver{% elif user.rank == 3 %}bronze{% endif %}"
-          data-label="Rank"
-        >
-          {{ user.rank }}
-        </td>
-        <td
-          class="club-cell col-club"
-          title="Manager: {{ user.managerName or '—' }}"
-          data-label="Team"
-        >
-          {% if user.clubImageUrl %}
-          <img src="{{ user.clubImageUrl }}" alt="Team image" style="height: 24px; width: auto" />
-          {% endif %}
-          <span class="club-name">{{ user.username }}</span>
-        </td>
-        <td class="col-games" data-label="Games">{{ user.games_predicted }}</td>
-        <td class="col-correct" data-label="Correct">{{ user.points }}</td>
-        <td class="col-accuracy" data-label="Accuracy">{{ user.accuracy }}%</td>
-        <td class="col-yellow" data-label="🟡">{{ user.yellow_cards }}</td>
-        <td class="col-red" data-label="🔴">{{ user.red_cards }}</td>
-        <td
-          class="col-injury"
-          data-label="☠️"
-          style="color: {{ 'red' if user.injury_status == '❌' else 'green' }}"
-        >
-          {{ user.injury_status }}
-        </td>
-        <td class="col-points" data-label="Points">{{ user.adjusted_points }}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-  <style>
-    /* Desktop tweaks */
-    .league-row {
-      text-align: center;
-    }
-    .club-cell {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      justify-content: center;
-    }
-    .club-cell .club-name {
-      font-weight: 600;
-    }
-    .highlight-you {
-      outline: 2px solid #2066c7;
-      outline-offset: -2px;
-    }
-    .view-hint {
-      text-align: center;
-      color: #6b7a8c;
-      font-size: 0.9rem;
-      margin: -18px 0 14px;
-      display: none; /* hidden by default, shown on small screens */
-    }
-
-    /* Mobile: keep table shape, compact view */
-    @media (max-width: 720px) {
-      .container {
-        padding: 0 8px;
-      }
-
-      .league-table {
-        width: 100%;
-        border-collapse: collapse;
-        font-size: clamp(12px, 3.4vw, 14px);
-        table-layout: fixed;
-      }
-
-      .league-table thead th {
-        position: sticky;
-        top: 0;
-        z-index: 2;
-        background: #093759;
-        color: #fff;
-        padding: 6px 8px;
-        border-bottom: 0;
-      }
-
-      .league-table td {
-        padding: 6px 8px;
-        border-bottom: 1px solid #eef2f7;
-        height: 36px;
-      }
-
-      .view-hint {
-        display: block;
-      }
-
-      /* Show only the essentials to keep the “league picture” */
-      .league-table .col-correct,
-      .league-table .col-accuracy,
-      .league-table .col-yellow,
-      .league-table .col-red,
-      .league-table .col-injury {
-        display: none;
-      }
-
-      /* Make rows tighter and readable */
-      .league-row {
-        line-height: 1.2;
-      }
-
-      .club-cell img {
-        height: 18px;
-        width: auto;
-      }
-
-      .club-cell .club-name {
-        display: inline-block;
-        max-width: 16ch;
-        white-space: nowrap;
-        overflow: hidden;
-        text-overflow: ellipsis;
-        vertical-align: middle;
-      }
-
-      /* Keep key numeric columns narrow and aligned */
-      .col-rank,
-      .col-games,
-      .col-points {
-        width: 56px;
-        text-align: center;
-        white-space: nowrap;
-      }
-
-      .col-club {
-        width: auto;
-      }
-
-      /* Optional zebra for scanability */
-      .league-table tbody tr:nth-child(odd) {
-        background: #fcfdff;
-      }
-
-      /* Your row highlight still works */
-      .highlight-you {
-        outline: 2px solid #2066c7;
-        outline-offset: -2px;
-      }
-    }
-  </style>
+      <span class="inline-flex items-center gap-1"
+        ><span class="h-2 w-2 rounded-full bg-slate-300 inline-block"></span> 2nd</span
+      >
+      <span class="inline-flex items-center gap-1"
+        ><span class="h-2 w-2 rounded-full bg-amber-500 inline-block"></span> 3rd</span
+      >
+      <span class="inline-flex items-center gap-1"
+        ><span
+          class="h-2 w-2 rounded bg-emerald-400 inline-block"
+          style="width: 24px; height: 6px"
+        ></span>
+        Accuracy bar</span
+      >
+    </div>
+  </main>
 </div>
+
+<style>
+  /* hide scrollbars on mobile for cleaner look */
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+</style>
+
 {% endblock %}

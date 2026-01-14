@@ -309,6 +309,28 @@
 </style>
 
 <div class="container" style="max-width: 1024px; margin: 0 auto; padding: 20px">
+  {% with messages = get_flashed_messages() %}
+    {% if messages %}
+      <div style="margin: 16px 0">
+        {% for message in messages %}
+          <div
+            style="
+              background: #e8f8ee;
+              border: 1px solid #b9ebc9;
+              color: #166534;
+              padding: 10px 14px;
+              border-radius: 12px;
+              font-weight: 700;
+              margin-bottom: 8px;
+              text-align: center;
+            "
+          >
+            {{ message }}
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
   <h1
     style="margin: 24px 0; font-size: 2rem; font-weight: bold; color: #093759; text-align: center"
   >
@@ -345,7 +367,8 @@
         <div class="chip-icon">
           {% if item.id == "red_card" %}🚫{% elif item.id == "yellow_card" %}⚠️{% elif item.id ==
           "injury" %}💀 {% elif item.id == "hire_physio" %}🩺{% elif item.id == "bribe_ref" %}💸{%
-          elif item.id == "appeal_decision" %}⚖️ {% else %}🎲{% endif %}
+          elif item.id == "appeal_decision" %}⚖️ {% elif item.id == "coin_topup" %}🪙{% else %}🎲{%
+          endif %}
         </div>
         <div class="chip-text">
           <p class="chip-title">{{ item.name }}</p>
@@ -355,8 +378,11 @@
             <span class="chip-pill sold" aria-label="Sold out">SOLD&nbsp;OUT</span>
             {% elif item.quantity is defined and item.quantity <= 3 %}
             <span class="chip-pill low" aria-label="Low stock">LOW&nbsp;STOCK</span>
-            {% endif %}
+            {% endif %} {% if item.id == "coin_topup" %}
+            <span class="chip-pill price">£{{ item.cash_price }}</span>
+            {% else %}
             <span class="chip-pill price">{{ item.price }} coins</span>
+            {% endif %}
           </div>
         </div>
       </div>
@@ -366,16 +392,22 @@
           <span class="chip-available">Available: {{ item.quantity }}</span>
           {% endif %}
         </div>
+        {% if item.id == "coin_topup" %}
+        <form method="POST" action="/paypal/create-order">
+        {% else %}
         <form method="POST" action="/marketplace/buy-item/{{ item.id }}">
+        {% endif %}
           {% if item.quantity is defined and item.quantity == 0 %}
           <button type="button" class="btn-buy" disabled>Sold out</button>
-          {% elif not item.can_afford %}
+          {% elif not item.can_afford and item.id != "coin_topup" %}
           <button type="button" class="btn-buy" disabled>
             Need {{ (item.price - coin_balance) if (item.price - coin_balance) > 0 else 0 }} more
           </button>
+          {% else %} {% if item.id == "coin_topup" %}
+          <button type="submit" class="btn-buy">💳 Buy</button>
           {% else %}
           <button type="submit" class="btn-buy">🛒 Purchase</button>
-          {% endif %}
+          {% endif %} {% endif %}
         </form>
       </div>
     </div>

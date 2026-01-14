@@ -37,7 +37,7 @@ from flask import Flask, render_template, request, redirect, url_for, session, f
 # credentials and auth for verification
 # firestore for the database itself
 import firebase_admin
-from firebase_admin import credentials, auth, firestore, messaging
+from firebase_admin import credentials, auth, firestore
 
 # this was used to create random string tokens
 # i don't think i was successful with this 
@@ -211,7 +211,7 @@ def _require_session_for_protected_pages():
 # -----------------------------------------------------
 FIREBASE_WEB_API_KEY = os.getenv("FIREBASE_WEB_API_KEY")
 
-verification_codes = {}
+'''verification_codes = {}'''
 
 # -----------------------------------------------------
 # User doc schema (defaults used at signup/bootstrap)
@@ -252,7 +252,7 @@ def build_default_user_doc(uid: str, email: str, username: str = "") -> dict:
         "updated_at": firestore.SERVER_TIMESTAMP
     }
 
-#
+'''
 # ✅ Email Configuration
 SMTP_SERVER = os.getenv("SMTP_SERVER")
 SMTP_PORT = int(os.getenv("SMTP_PORT", 587))  # make sure to cast as int
@@ -338,7 +338,7 @@ def verify_password_with_firebase(email, password, api_key):
         print("❌ signInWithPassword failed",
               {"status": resp.status_code, "key_tail": key_tail, "body": resp.text[:400]})
         return None
-
+'''
 # -----------------------------------------------------
 # Creates user session
 # -----------------------------------------------------
@@ -507,6 +507,15 @@ def auth_custom_token():
     except Exception as e:
         print("custom_token error:", e)
         return jsonify({"error": "Could not create token"}), 500
+    
+
+# ============================
+# S26/27 ROUTES (NEW SEASON)
+# ============================
+@app.route("/s2627/home")
+def s2627_home():
+    return render_template("season2627home.html")
+
 
 # -----------------------------------------------------
 # Profile (view + update) – user-doc native
@@ -653,7 +662,7 @@ def upload_avatar():
 # -----------------------------------------------------
 # V3 routes here
 # -----------------------------------------------------
-@app.route("/quiz")
+'''@app.route("/quiz")
 def quiz():
     with open("quiz_bank.json") as f:
         questions = json.load(f)
@@ -699,7 +708,7 @@ def submit_interest():
 
     db.collection("quiz_passes").add(data)
 
-    return render_template("confirmation.html", name=name)
+    return render_template("confirmation.html", name=name) '''
 
 @app.route("/home")
 def home():
@@ -980,7 +989,7 @@ def reporting():
         print(f"⚠️ reporting: failed to load reports: {e}")
 
     return render_template("reporting.html", press_reports=reports)
-
+'''
 @app.route("/reporting/<report_id>/comment", methods=["POST"])
 def add_press_comment(report_id):
     if "user_id" not in session:
@@ -1015,7 +1024,7 @@ def add_press_comment(report_id):
         flash("⚠️ Failed to post comment.")
 
     return redirect(url_for("reporting") + f"#report-{report_id}")
-
+'''
 # -----------------------------------------------------
 # Admin Page Functions
 # -----------------------------------------------------
@@ -1100,12 +1109,12 @@ def admin_home():
     except Exception as e:
         print("⚠️ Failed to load pot history:", e)
 
-    # 🔄 Load TikTok game state for toggle button
+    '''# 🔄 Load TikTok game state for toggle button
     tiktok_state = db.collection("state") \
                      .document("tiktokGameState") \
                      .get().to_dict() or {}
     active_game_day = tiktok_state.get("activeGameDay")
-    locked          = tiktok_state.get("locked", False)
+    locked          = tiktok_state.get("locked", False) '''
 
     return render_template(
         "admin_dashboard.html",
@@ -1114,8 +1123,6 @@ def admin_home():
         incomplete_clubs=incomplete_clubs,
         hotpicks=hotpicks,
         pot_history=pot_history,
-        active_game_day=active_game_day,
-        locked=locked,
         hotpicks_weighted=hotpicks_weighted
     )
 
@@ -1552,14 +1559,14 @@ def about():
 def index():
     return redirect(url_for('home'))
 
-# -----------------------------------------------------
+'''# -----------------------------------------------------
 # Serve Firebase Messaging service worker at origin root
 # -----------------------------------------------------
 @app.route('/firebase-messaging-sw.js')
 def firebase_sw():
     # This file lives in /static/firebase-messaging-sw.js but must be served at /
     # so the service worker can control the whole origin.
-    return send_from_directory('static', 'firebase-messaging-sw.js', mimetype='application/javascript')
+    return send_from_directory('static', 'firebase-messaging-sw.js', mimetype='application/javascript') '''
 
 # -----------------------------------------------------
 # Game Entry Route
@@ -1858,7 +1865,7 @@ def submit_prediction():
         return jsonify({"error": "Failed to save prediction."}), 500
 
 
-
+'''
 # -----------------------------------------------------
 # FCM token registration
 # -----------------------------------------------------
@@ -2105,7 +2112,7 @@ def fcm_list_tokens():
             "last_registered": fcm.get("last_registered")
         })
     except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
+        return jsonify({"success": False, "message": str(e)}), 500 '''
 
 # -----------------------------------------------------
 # Action Cards - now a single function for V3
