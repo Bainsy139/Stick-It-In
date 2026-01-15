@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SII – Social (Mock)</title>
+
+    <!--
+    COPIED 1:1 FROM season2627home.html
+    DO NOT MODIFY STYLES
+  -->
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --panel: #121623;
+        --panel-2: #0f1320;
+        --text: #e9ecf5;
+        --muted: #a7afc4;
+        --faint: #6f7892;
+        --stroke: rgba(255, 255, 255, 0.08);
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+        --accent: #7aa2ff;
+        --accent-2: rgba(122, 162, 255, 0.18);
+
+        --r: 18px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: radial-gradient(
+            1200px 800px at 20% -10%,
+            rgba(122, 162, 255, 0.12),
+            transparent 60%
+          ),
+          radial-gradient(900px 600px at 90% 0%, rgba(68, 209, 157, 0.1), transparent 55%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      .wrap {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 18px 14px 28px;
+      }
+
+      .section {
+        margin-top: 16px;
+      }
+      .kicker {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0;
+      }
+      .big {
+        margin: 8px 0 6px;
+        font-size: 34px;
+        line-height: 1;
+        letter-spacing: -0.02em;
+      }
+      .hint {
+        font-size: 13px;
+        color: var(--muted);
+        max-width: 36ch;
+      }
+
+      .card {
+        border-radius: var(--r);
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.02);
+        padding: 16px;
+        box-shadow: var(--shadow);
+        margin-top: 16px;
+      }
+
+      .meta {
+        font-size: 12px;
+        color: var(--faint);
+        margin-bottom: 6px;
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        font-size: 14px;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+      .row:last-child {
+        border-bottom: 0;
+      }
+
+      .pill {
+        border-radius: 999px;
+        padding: 6px 12px;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.03);
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .btn {
+        border-radius: 14px;
+        padding: 12px 0;
+        text-align: center;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.03);
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 12px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <main class="wrap">
+      <!-- HEADER -->
+      <section class="section">
+        <p class="kicker">Social</p>
+        <h1 class="big">Public signal</h1>
+        <p class="hint">Verified outcomes · No commentary · No persuasion</p>
+      </section>
+
+      <!-- PHILOSOPHY -->
+      <section class="card">
+        <p class="meta">Principle</p>
+        <p class="hint">This platform does not promote picks. It publishes results.</p>
+      </section>
+
+      <!-- CONNECTED CHANNELS -->
+      <section class="card">
+        <p class="meta">Connected channels</p>
+
+        <div class="row">
+          <span>X (formerly Twitter)</span>
+          <span class="pill">Planned</span>
+        </div>
+
+        <div class="row">
+          <span>Discord</span>
+          <span class="pill">Internal</span>
+        </div>
+
+        <div class="row">
+          <span>Website feed</span>
+          <span class="pill">Active</span>
+        </div>
+      </section>
+
+      <!-- WHAT GETS POSTED -->
+      <section class="card">
+        <p class="meta">What is published</p>
+
+        <div class="row">
+          <span>Weekly Hot Picks summary</span>
+          <span class="pill">Yes</span>
+        </div>
+
+        <div class="row">
+          <span>League movements</span>
+          <span class="pill">Top tier only</span>
+        </div>
+
+        <div class="row">
+          <span>Pot growth updates</span>
+          <span class="pill">Yes</span>
+        </div>
+
+        <div class="row">
+          <span>Individual picks</span>
+          <span class="pill">Never</span>
+        </div>
+      </section>
+
+      <!-- GOVERNANCE -->
+      <section class="card">
+        <p class="meta">Governance</p>
+        <p class="hint">All published data is system-generated. No edits. No spin. No deletion.</p>
+      </section>
+
+      <p class="meta" style="text-align: center; margin-top: 24px">
+        Visibility is earned through performance, not volume
+      </p>
+    </main>
+  </body>
+</html>

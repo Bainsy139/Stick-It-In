@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SII – Weekly Report (Mock)</title>
+
+    <!--
+    COPIED 1:1 FROM season2627home.html
+    DO NOT MODIFY STYLES
+  -->
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --panel: #121623;
+        --panel-2: #0f1320;
+        --text: #e9ecf5;
+        --muted: #a7afc4;
+        --faint: #6f7892;
+        --stroke: rgba(255, 255, 255, 0.08);
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+        --accent: #7aa2ff;
+        --accent-2: rgba(122, 162, 255, 0.18);
+        --good: #44d19d;
+        --bad: #ff6b6b;
+
+        --r: 18px;
+        --pad: 16px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: radial-gradient(
+            1200px 800px at 20% -10%,
+            rgba(122, 162, 255, 0.12),
+            transparent 60%
+          ),
+          radial-gradient(900px 600px at 90% 0%, rgba(68, 209, 157, 0.1), transparent 55%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      .wrap {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 18px 14px 28px;
+      }
+
+      .section {
+        margin-top: 16px;
+      }
+      .kicker {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0;
+      }
+      .big {
+        margin: 8px 0 4px;
+        font-size: 34px;
+        line-height: 1;
+        letter-spacing: -0.02em;
+      }
+      .hint {
+        font-size: 13px;
+        color: var(--muted);
+        max-width: 36ch;
+      }
+
+      .card {
+        border-radius: var(--r);
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.02);
+        padding: 16px;
+        box-shadow: var(--shadow);
+        margin-top: 16px;
+      }
+
+      .meta {
+        font-size: 12px;
+        color: var(--faint);
+      }
+
+      .bullet {
+        margin-top: 10px;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .notice {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .notice:last-child {
+        border-bottom: 0;
+      }
+
+      .tag {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--stroke);
+        color: var(--muted);
+      }
+
+      .tag.warn {
+        color: var(--bad);
+        border-color: rgba(255, 107, 107, 0.4);
+      }
+
+      .tag.info {
+        color: var(--accent);
+        border-color: rgba(122, 162, 255, 0.4);
+      }
+    </style>
+  </head>
+
+  <body>
+    <main class="wrap">
+      <!-- HEADER -->
+      <section class="section">
+        <p class="kicker">Game Week {{ week_number if week_number else "—" }}</p>
+        <h1 class="big">Weekly Report</h1>
+        <p class="hint">A summary of league activity, enforcement, and notable movement.</p>
+      </section>
+
+      <!-- ACTIVITY FEED -->
+      {% for e in events %}
+      <section class="card">
+        <p class="meta">
+          {{ e.type.replace("_", " ").title() }} · {{ e.created_at.strftime("%d-%b-%y") if
+          e.created_at else "" }}
+        </p>
+
+        <div class="notice">
+          <span> {{ e.actor_name }} {% if e.target_name %} → {{ e.target_name }}{% endif %} </span>
+
+          {% if e.payload.card == "yellow" %}
+          <span class="tag" style="color: #ffd166; border-color: rgba(255, 209, 102, 0.4)"
+            >Yellow Card</span
+          >
+          {% elif e.payload.card == "red" %}
+          <span class="tag warn">Red Card</span>
+          {% elif e.payload.card == "injury" %}
+          <span class="tag" style="color: #ffffff; border-color: rgba(255, 255, 255, 0.35)"
+            >Injury</span
+          >
+          {% elif e.type == "POT_UPDATED" %}
+          <span class="tag info">Pot Update</span>
+          {% elif e.type == "TIER_CHANGED" %}
+          <span class="tag info">Tier Change</span>
+          {% elif e.type == "ADMIN_NOTE" %}
+          <span class="tag info">Admin</span>
+          {% else %}
+          <span class="tag info">Event</span>
+          {% endif %}
+        </div>
+
+        {% if e.payload.reason %}
+        <p class="bullet">{{ e.payload.reason }}</p>
+        {% endif %}
+      </section>
+      {% endfor %} {% if not events %}
+      <section class="card">
+        <p class="meta">No activity</p>
+        <p class="bullet">No public events have been recorded yet.</p>
+      </section>
+      {% endif %}
+
+      <p class="meta" style="text-align: center; margin-top: 24px">
+        Reports are published weekly · Decisions are final
+      </p>
+    </main>
+  </body>
+</html>

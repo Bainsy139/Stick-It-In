@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SII • Season Ledger</title>
+
+    <style>
+      /* =========================
+       CORE – MATCH HOME PAGE
+       ========================= */
+      :root {
+        --bg-dark: #0b0f14;
+        --bg-card: rgba(255, 255, 255, 0.06);
+        --bg-card-strong: rgba(255, 255, 255, 0.09);
+        --border-soft: rgba(255, 255, 255, 0.08);
+
+        --text-main: #e7ebf3;
+        --text-muted: #9aa3b2;
+
+        --accent-blue: #4f7cff;
+        --accent-green: #38d39f;
+        --accent-red: #ff5c5c;
+
+        --radius: 18px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'Inter', sans-serif;
+        background: radial-gradient(circle at top, #111827, #070a10 70%);
+        color: var(--text-main);
+        min-height: 100vh;
+      }
+
+      .app {
+        max-width: 420px;
+        margin: 0 auto;
+        padding: 20px 16px 100px;
+      }
+
+      h1 {
+        font-size: 22px;
+        font-weight: 600;
+        margin: 8px 0 4px;
+      }
+
+      .subtitle {
+        font-size: 13px;
+        color: var(--text-muted);
+        margin-bottom: 20px;
+      }
+
+      /* =========================
+       POT SNAPSHOT
+       ========================= */
+      .pot-card {
+        background: linear-gradient(135deg, rgba(79, 124, 255, 0.15), rgba(255, 255, 255, 0.04));
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius);
+        padding: 18px;
+        margin-bottom: 24px;
+      }
+
+      .pot-label {
+        font-size: 12px;
+        letter-spacing: 0.08em;
+        color: var(--text-muted);
+        text-transform: uppercase;
+      }
+
+      .pot-value {
+        font-size: 34px;
+        font-weight: 700;
+        margin: 6px 0;
+      }
+
+      .pot-meta {
+        font-size: 13px;
+        color: var(--text-muted);
+      }
+
+      /* =========================
+       GRAPH PLACEHOLDER
+       ========================= */
+      .graph-card {
+        background: var(--bg-card);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius);
+        padding: 16px;
+        margin-bottom: 24px;
+      }
+
+      .graph-placeholder {
+        height: 160px;
+        border-radius: 12px;
+        background: linear-gradient(
+          to right,
+          rgba(255, 255, 255, 0.04) 25%,
+          rgba(255, 255, 255, 0.08) 37%,
+          rgba(255, 255, 255, 0.04) 63%
+        );
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: var(--text-muted);
+        font-size: 13px;
+      }
+
+      /* =========================
+       LEDGER EVENTS
+       ========================= */
+      .ledger-section {
+        margin-top: 10px;
+      }
+
+      .ledger-item {
+        background: var(--bg-card);
+        border: 1px solid var(--border-soft);
+        border-radius: var(--radius);
+        padding: 14px 16px;
+        margin-bottom: 12px;
+      }
+
+      .ledger-title {
+        font-size: 14px;
+        font-weight: 500;
+        margin-bottom: 4px;
+      }
+
+      .ledger-meta {
+        font-size: 12px;
+        color: var(--text-muted);
+        display: flex;
+        justify-content: space-between;
+      }
+
+      .tag {
+        font-size: 11px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border-soft);
+        background: var(--bg-card-strong);
+        color: var(--text-main);
+      }
+
+      .tag.green {
+        color: var(--accent-green);
+      }
+      .tag.blue {
+        color: var(--accent-blue);
+      }
+      .tag.red {
+        color: var(--accent-red);
+      }
+
+      /* =========================
+       BOTTOM NAV (CONSISTENT)
+       ========================= */
+      .nav {
+        position: fixed;
+        bottom: 12px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: calc(100% - 32px);
+        max-width: 420px;
+        background: rgba(15, 20, 30, 0.85);
+        backdrop-filter: blur(12px);
+        border: 1px solid var(--border-soft);
+        border-radius: 999px;
+        display: flex;
+        justify-content: space-around;
+        padding: 10px 0;
+      }
+
+      .nav-item {
+        font-size: 12px;
+        color: var(--text-muted);
+      }
+
+      .nav-item.active {
+        color: var(--text-main);
+        font-weight: 500;
+      }
+    </style>
+  </head>
+
+  <body>
+    <div class="app">
+      <h1>Season Ledger</h1>
+      <div class="subtitle">Verified history of the community pot and major league events.</div>
+
+      <!-- POT SNAPSHOT -->
+      <div class="pot-card">
+        <div class="pot-label">Community Pot</div>
+        <div class="pot-value">£1,248.50</div>
+        <div class="pot-meta">Updated Week 23 · Season 2025/26</div>
+      </div>
+
+      <!-- GRAPH -->
+      <div class="graph-card">
+        <div class="graph-placeholder">Pot growth graph (weekly)</div>
+      </div>
+
+      <!-- LEDGER EVENTS -->
+      <div class="ledger-section">
+        <div class="ledger-item">
+          <div class="ledger-title">Platinum tier reshuffle triggered</div>
+          <div class="ledger-meta">
+            <span>Week 23</span>
+            <span class="tag blue">Tier Shift</span>
+          </div>
+        </div>
+
+        <div class="ledger-item">
+          <div class="ledger-title">Yellow card issued in Platinum</div>
+          <div class="ledger-meta">
+            <span>Week 22</span>
+            <span class="tag red">Penalty</span>
+          </div>
+        </div>
+
+        <div class="ledger-item">
+          <div class="ledger-title">Pot crossed £1,000 milestone</div>
+          <div class="ledger-meta">
+            <span>Week 21</span>
+            <span class="tag green">Milestone</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- NAV -->
+    <div class="nav">
+      <div class="nav-item">Home</div>
+      <div class="nav-item">Enter</div>
+      <div class="nav-item">League</div>
+      <div class="nav-item active">Ledger</div>
+      <div class="nav-item">Shop</div>
+    </div>
+  </body>
+</html>

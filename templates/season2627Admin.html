@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SII – Admin Hub (Desktop Mock)</title>
+
+    <!--
+    COPIED 1:1 FROM season2627home.html
+    DO NOT MODIFY STYLES
+  -->
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --panel: #121623;
+        --panel-2: #0f1320;
+        --text: #e9ecf5;
+        --muted: #a7afc4;
+        --faint: #6f7892;
+        --stroke: rgba(255, 255, 255, 0.08);
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+        --accent: #7aa2ff;
+        --accent-2: rgba(122, 162, 255, 0.18);
+        --good: #44d19d;
+        --bad: #ff6b6b;
+
+        --r: 18px;
+        --pad: 16px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: radial-gradient(
+            1200px 800px at 20% -10%,
+            rgba(122, 162, 255, 0.12),
+            transparent 60%
+          ),
+          radial-gradient(900px 600px at 90% 0%, rgba(68, 209, 157, 0.1), transparent 55%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      .wrap {
+        max-width: 1200px; /* DESKTOP WIDTH */
+        margin: 0 auto;
+        padding: 22px 24px 32px;
+      }
+
+      .section {
+        margin-top: 16px;
+      }
+      .kicker {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0;
+      }
+      .big {
+        margin: 8px 0 4px;
+        font-size: 34px;
+        line-height: 1;
+        letter-spacing: -0.02em;
+      }
+      .hint {
+        font-size: 13px;
+        color: var(--muted);
+        max-width: 40ch;
+      }
+
+      .card {
+        border-radius: var(--r);
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.02);
+        padding: 16px;
+        box-shadow: var(--shadow);
+        margin-top: 16px;
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .meta {
+        font-size: 12px;
+        color: var(--faint);
+      }
+
+      .stat {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 14px;
+      }
+
+      .stat:last-child {
+        border-bottom: 0;
+      }
+
+      .pill {
+        border-radius: 999px;
+        padding: 6px 12px;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.03);
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .btn {
+        border-radius: 14px;
+        padding: 12px 0;
+        text-align: center;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.03);
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: 10px;
+      }
+
+      .btn.primary {
+        color: var(--accent);
+        border-color: var(--accent);
+        background: linear-gradient(180deg, rgba(122, 162, 255, 0.18), rgba(122, 162, 255, 0.06));
+      }
+    </style>
+  </head>
+
+  <body>
+    <main class="wrap">
+      <!-- HEADER -->
+      <section class="section">
+        <p class="kicker">Administration</p>
+        <h1 class="big">Control Centre</h1>
+        <p class="hint">Operational overview · Manual authority · System truth</p>
+      </section>
+
+      <!-- DESKTOP GRID -->
+      <section style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px">
+        <!-- COLUMN 1 -->
+        <div>
+          <section class="card">
+            <p class="meta">System Status</p>
+
+            <div class="stat">
+              <span>Game Week</span>
+              <strong>18 · Active</strong>
+            </div>
+
+            <div class="stat">
+              <span>Prediction Window</span>
+              <span class="pill">Open</span>
+            </div>
+
+            <div class="stat">
+              <span>Live Data Feed</span>
+              <span class="pill">Running</span>
+            </div>
+          </section>
+
+          <section class="card">
+            <p class="meta">Automation</p>
+
+            <div class="stat">
+              <span>Hot Picks (Weighted)</span>
+              <span class="pill">Ready</span>
+            </div>
+
+            <div class="stat">
+              <span>Fixture Sync</span>
+              <span class="pill">OK</span>
+            </div>
+
+            <div class="btn">Run Hot Picks</div>
+          </section>
+        </div>
+
+        <!-- COLUMN 2 -->
+        <div>
+          <section class="card">
+            <p class="meta">Community Pot</p>
+
+            <div class="stat">
+              <span>Current Value</span>
+              <strong>£1,842.60</strong>
+            </div>
+
+            <div class="stat">
+              <span>Weekly Change</span>
+              <strong>+£96.40</strong>
+            </div>
+
+            <div class="btn primary">Update Pot & Distribution</div>
+          </section>
+
+          <section class="card">
+            <p class="meta">League Health</p>
+
+            <div class="stat">
+              <span>Active Users</span>
+              <strong>42</strong>
+            </div>
+
+            <div class="stat">
+              <span>Platinum Participation</span>
+              <strong>100%</strong>
+            </div>
+
+            <div class="stat">
+              <span>At-Risk Accounts</span>
+              <strong>3</strong>
+            </div>
+          </section>
+        </div>
+
+        <!-- COLUMN 3 -->
+        <div>
+          <section class="card">
+            <p class="meta">Enforcement</p>
+
+            <div class="stat">
+              <span>Missed Deadlines</span>
+              <strong>3</strong>
+            </div>
+
+            <div class="stat">
+              <span>Yellow Cards Issued</span>
+              <strong>2</strong>
+            </div>
+
+            <div class="stat">
+              <span>Accounts Hidden</span>
+              <strong>1</strong>
+            </div>
+
+            <div class="btn">Run Enforcement Check</div>
+          </section>
+
+          <section class="card">
+            <p class="meta">Audit</p>
+
+            <div class="stat">
+              <span>Last Admin Action</span>
+              <strong>Pot Update</strong>
+            </div>
+
+            <div class="stat">
+              <span>Timestamp</span>
+              <strong>Sat 10:42</strong>
+            </div>
+          </section>
+        </div>
+      </section>
+
+      <p class="meta" style="text-align: center; margin-top: 28px">
+        Administrative actions are logged · Authority is final
+      </p>
+    </main>
+  </body>
+</html>

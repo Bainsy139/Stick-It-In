@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SII – Profile (Mock)</title>
+
+    <!--
+    COPIED 1:1 FROM season2627home.html
+    DO NOT MODIFY STYLES
+  -->
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --panel: #121623;
+        --panel-2: #0f1320;
+        --text: #e9ecf5;
+        --muted: #a7afc4;
+        --faint: #6f7892;
+        --stroke: rgba(255, 255, 255, 0.08);
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+        --accent: #7aa2ff;
+        --accent-2: rgba(122, 162, 255, 0.18);
+        --good: #44d19d;
+        --bad: #ff6b6b;
+
+        --r: 18px;
+        --pad: 16px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: radial-gradient(
+            1200px 800px at 20% -10%,
+            rgba(122, 162, 255, 0.12),
+            transparent 60%
+          ),
+          radial-gradient(900px 600px at 90% 0%, rgba(68, 209, 157, 0.1), transparent 55%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      .wrap {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 18px 14px 28px;
+      }
+
+      .section {
+        margin-top: 16px;
+      }
+      .kicker {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0;
+      }
+      .big {
+        margin: 8px 0 4px;
+        font-size: 34px;
+        line-height: 1;
+        letter-spacing: -0.02em;
+      }
+      .hint {
+        font-size: 13px;
+        color: var(--muted);
+        max-width: 36ch;
+      }
+
+      .card {
+        border-radius: var(--r);
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.02);
+        padding: 16px;
+        box-shadow: var(--shadow);
+        margin-top: 16px;
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .meta {
+        font-size: 12px;
+        color: var(--faint);
+      }
+
+      .stat {
+        display: flex;
+        justify-content: space-between;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 14px;
+      }
+
+      .stat:last-child {
+        border-bottom: 0;
+      }
+
+      .tag {
+        font-size: 12px;
+        padding: 4px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--stroke);
+        color: var(--muted);
+      }
+
+      .tag.good {
+        color: var(--good);
+        border-color: rgba(68, 209, 157, 0.4);
+      }
+
+      .tag.warn {
+        color: var(--bad);
+        border-color: rgba(255, 107, 107, 0.4);
+      }
+    </style>
+  </head>
+
+  <body>
+    <main class="wrap">
+      <!-- HEADER -->
+      <section class="section">
+        <p class="kicker">Account</p>
+        <h1 class="big">Operator Profile</h1>
+        <p class="hint">Personal performance, status, and participation history.</p>
+      </section>
+
+      <!-- IDENTITY -->
+      <section class="card">
+        <p class="meta">Identity</p>
+
+        <div class="stat">
+          <span>Display Name</span>
+          <strong>Atlas</strong>
+        </div>
+
+        <div class="stat">
+          <span>Tier</span>
+          <span class="tag good">Platinum</span>
+        </div>
+
+        <div class="stat">
+          <span>Season Joined</span>
+          <strong>26 / 27</strong>
+        </div>
+      </section>
+
+      <!-- PERFORMANCE -->
+      <section class="card">
+        <p class="meta">Performance</p>
+
+        <div class="stat">
+          <span>Accuracy</span>
+          <strong>71%</strong>
+        </div>
+
+        <div class="stat">
+          <span>League Position</span>
+          <strong>4</strong>
+        </div>
+
+        <div class="stat">
+          <span>Predictions Submitted</span>
+          <strong>94%</strong>
+        </div>
+      </section>
+
+      <!-- DISCIPLINE -->
+      <section class="card">
+        <p class="meta">Discipline</p>
+
+        <div class="stat">
+          <span>Yellow Cards</span>
+          <strong>1</strong>
+        </div>
+
+        <div class="stat">
+          <span>Current Status</span>
+          <span class="tag warn">At Risk</span>
+        </div>
+      </section>
+
+      <!-- CONTRIBUTION -->
+      <section class="card">
+        <p class="meta">Contribution</p>
+
+        <div class="stat">
+          <span>Community Pot Impact</span>
+          <strong>+£84.20</strong>
+        </div>
+
+        <div class="stat">
+          <span>Weeks Active</span>
+          <strong>18</strong>
+        </div>
+      </section>
+
+      <p class="meta" style="text-align: center; margin-top: 24px">
+        Profile data updates weekly · Historical data is preserved
+      </p>
+    </main>
+  </body>
+</html>

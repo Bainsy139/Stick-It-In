@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SII – Live Scores (Mock)</title>
+
+    <!--
+    COPIED 1:1 FROM season2627home.html
+    DO NOT MODIFY STYLES
+  -->
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --panel: #121623;
+        --panel-2: #0f1320;
+        --text: #e9ecf5;
+        --muted: #a7afc4;
+        --faint: #6f7892;
+        --stroke: rgba(255, 255, 255, 0.08);
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+        --accent: #7aa2ff;
+        --accent-2: rgba(122, 162, 255, 0.18);
+        --good: #44d19d;
+        --bad: #ff6b6b;
+
+        --r: 18px;
+        --pad: 16px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: radial-gradient(
+            1200px 800px at 20% -10%,
+            rgba(122, 162, 255, 0.12),
+            transparent 60%
+          ),
+          radial-gradient(900px 600px at 90% 0%, rgba(68, 209, 157, 0.1), transparent 55%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      .wrap {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 18px 14px 28px;
+      }
+
+      .section {
+        margin-top: 16px;
+      }
+      .kicker {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0;
+      }
+      .big {
+        margin: 8px 0 4px;
+        font-size: 34px;
+        line-height: 1;
+        letter-spacing: -0.02em;
+      }
+      .hint {
+        font-size: 13px;
+        color: var(--muted);
+        max-width: 36ch;
+      }
+
+      .card {
+        border-radius: var(--r);
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.02);
+        padding: 16px;
+        box-shadow: var(--shadow);
+        margin-top: 16px;
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 12px;
+      }
+
+      .meta {
+        font-size: 12px;
+        color: var(--faint);
+      }
+
+      .fixture {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 12px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .fixture:last-child {
+        border-bottom: 0;
+      }
+
+      .teams {
+        flex: 1;
+      }
+
+      .team {
+        font-size: 14px;
+        font-weight: 600;
+      }
+
+      .score {
+        font-size: 16px;
+        font-weight: 700;
+        color: var(--accent);
+        margin-left: 12px;
+      }
+
+      .status {
+        font-size: 12px;
+        color: var(--muted);
+        margin-left: 12px;
+        white-space: nowrap;
+      }
+    </style>
+  </head>
+
+  <body>
+    <main class="wrap">
+      <!-- HEADER -->
+      <section class="section">
+        <p class="kicker">Game Week 18</p>
+        <h1 class="big">Live Scores</h1>
+        <p class="hint">Scores update automatically · Final results are confirmed post-match.</p>
+      </section>
+
+      <!-- PREMIER LEAGUE -->
+      <section class="card">
+        <div class="row">
+          <span class="meta">Premier League</span>
+          <span class="meta">Saturday</span>
+        </div>
+
+        <div class="fixture">
+          <div class="teams">
+            <div class="team">Arsenal vs Newcastle</div>
+          </div>
+          <div class="score">2 – 1</div>
+          <div class="status">78′</div>
+        </div>
+
+        <div class="fixture">
+          <div class="teams">
+            <div class="team">Liverpool vs Brighton</div>
+          </div>
+          <div class="score">1 – 1</div>
+          <div class="status">HT</div>
+        </div>
+
+        <div class="fixture">
+          <div class="teams">
+            <div class="team">Chelsea vs Wolves</div>
+          </div>
+          <div class="score">0 – 0</div>
+          <div class="status">FT</div>
+        </div>
+      </section>
+
+      <!-- CHAMPIONSHIP -->
+      <section class="card">
+        <div class="row">
+          <span class="meta">Championship</span>
+          <span class="meta">Saturday</span>
+        </div>
+
+        <div class="fixture">
+          <div class="teams">
+            <div class="team">Leeds vs Norwich</div>
+          </div>
+          <div class="score">3 – 2</div>
+          <div class="status">FT</div>
+        </div>
+
+        <div class="fixture">
+          <div class="teams">
+            <div class="team">Sunderland vs Bristol City</div>
+          </div>
+          <div class="score">0 – 1</div>
+          <div class="status">62′</div>
+        </div>
+      </section>
+
+      <p class="meta" style="text-align: center; margin-top: 24px">
+        Live data is provisional · Scoring is applied after verification
+      </p>
+    </main>
+  </body>
+</html>

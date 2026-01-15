@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SII – League (Mock)</title>
+
+    <!--
+    COPIED 1:1 FROM season2627home.html
+    DO NOT MODIFY STYLES
+  -->
+    <style>
+      :root {
+        --bg: #0b0d12;
+        --panel: #121623;
+        --panel-2: #0f1320;
+        --text: #e9ecf5;
+        --muted: #a7afc4;
+        --faint: #6f7892;
+        --stroke: rgba(255, 255, 255, 0.08);
+        --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+
+        --accent: #7aa2ff;
+        --accent-2: rgba(122, 162, 255, 0.18);
+        --good: #44d19d;
+        --bad: #ff6b6b;
+
+        --r: 18px;
+        --pad: 16px;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
+        background: radial-gradient(
+            1200px 800px at 20% -10%,
+            rgba(122, 162, 255, 0.12),
+            transparent 60%
+          ),
+          radial-gradient(900px 600px at 90% 0%, rgba(68, 209, 157, 0.1), transparent 55%),
+          var(--bg);
+        color: var(--text);
+      }
+
+      .wrap {
+        max-width: 520px;
+        margin: 0 auto;
+        padding: 18px 14px 28px;
+      }
+
+      .section {
+        margin-top: 16px;
+      }
+      .kicker {
+        font-size: 12px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        color: var(--muted);
+        margin: 0;
+      }
+      .big {
+        margin: 8px 0 4px;
+        font-size: 34px;
+        line-height: 1;
+        letter-spacing: -0.02em;
+      }
+      .hint {
+        font-size: 13px;
+        color: var(--muted);
+        max-width: 32ch;
+      }
+
+      .card {
+        border-radius: var(--r);
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.02);
+        padding: 16px;
+        box-shadow: var(--shadow);
+        margin-top: 16px;
+      }
+
+      .row {
+        display: flex;
+        justify-content: space-between;
+        gap: 12px;
+        align-items: center;
+      }
+
+      .meta {
+        font-size: 12px;
+        color: var(--faint);
+      }
+
+      .pill {
+        border-radius: 999px;
+        padding: 8px 12px;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.03);
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .entry {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      }
+
+      .entry:last-child {
+        border-bottom: 0;
+      }
+
+      .pos {
+        width: 32px;
+        text-align: center;
+        font-weight: 600;
+        color: var(--accent);
+      }
+
+      .name {
+        flex: 1;
+        font-weight: 600;
+        margin-left: 8px;
+      }
+
+      .pts {
+        font-size: 13px;
+        color: var(--muted);
+      }
+    </style>
+    <style>
+      .clickable {
+        cursor: pointer;
+        text-decoration: none;
+      }
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        pointer-events: auto;
+      }
+      .modal {
+        width: 100%;
+        max-width: 420px;
+        background: var(--panel);
+        border: 1px solid var(--stroke);
+        border-radius: var(--r);
+        padding: 16px;
+        box-shadow: var(--shadow);
+        position: relative;
+        z-index: 51;
+        pointer-events: auto;
+      }
+      .modal h3 {
+        margin: 0 0 12px;
+        font-size: 18px;
+      }
+      .modal-actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 12px;
+      }
+      .btn {
+        flex: 1;
+        border-radius: 999px;
+        padding: 10px 14px;
+        border: 1px solid var(--stroke);
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--text);
+        font-size: 13px;
+        cursor: pointer;
+      }
+      .btn.yellow {
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #ffd166;
+      }
+      .btn.red {
+        border-color: rgba(255, 255, 255, 0.2);
+        color: #ff6b6b;
+      }
+    </style>
+  </head>
+
+  <body>
+    <main class="wrap">
+      <!-- HEADER -->
+      <section class="section">
+        <p class="kicker">Season 26 / 27</p>
+        <h1 class="big">League Standings</h1>
+        <p class="hint">Only the top tier earns value.</p>
+      </section>
+
+      <!-- TIER: PLATINUM -->
+      <section class="card">
+        <div class="row">
+          <span class="meta">Platinum Tier · Paid Positions</span>
+          <span class="pill">Top 15</span>
+        </div>
+
+        {% for u in tiers.platinum %}
+        <div class="entry">
+          <div class="pos">{{ u.rank }}</div>
+          <div
+            class="name clickable"
+            data-uid="{{ u.uid | default(u.id) }}"
+            data-username="{{ u.username }}"
+            onclick="openCardModal(this)"
+          >
+            {{ u.username }}
+          </div>
+          <div class="pts">{{ u.points }} pts</div>
+        </div>
+        {% else %}
+        <p class="meta">No users in this tier.</p>
+        {% endfor %}
+      </section>
+
+      <!-- TIER: GOLD -->
+      <section class="card">
+        <div class="row">
+          <span class="meta">Gold Tier</span>
+          <span class="pill">Positions 16–50</span>
+        </div>
+
+        {% for u in tiers.gold %}
+        <div class="entry">
+          <div class="pos">{{ u.rank }}</div>
+          <div
+            class="name clickable"
+            data-uid="{{ u.uid | default(u.id) }}"
+            data-username="{{ u.username }}"
+            onclick="openCardModal(this)"
+          >
+            {{ u.username }}
+          </div>
+          <div class="pts">{{ u.points }} pts</div>
+        </div>
+        {% else %}
+        <p class="meta">No users in this tier.</p>
+        {% endfor %}
+      </section>
+
+      <!-- TIER: SILVER -->
+      <section class="card">
+        <div class="row">
+          <span class="meta">Silver Tier</span>
+          <span class="pill">Positions 51+</span>
+        </div>
+
+        {% for u in tiers.silver %}
+        <div class="entry">
+          <div class="pos">{{ u.rank }}</div>
+          <div
+            class="name clickable"
+            data-uid="{{ u.uid | default(u.id) }}"
+            data-username="{{ u.username }}"
+            onclick="openCardModal(this)"
+          >
+            {{ u.username }}
+          </div>
+          <div class="pts">{{ u.points }} pts</div>
+        </div>
+        {% else %}
+        <p class="meta">No users in this tier.</p>
+        {% endfor %}
+      </section>
+
+      <p class="meta" style="text-align: center; margin-top: 24px">
+        League position updates weekly · Accuracy drives value
+      </p>
+    </main>
+    <div class="modal-backdrop" id="cardModal">
+      <div class="modal">
+        <h3 id="modalTitle">Issue Card</h3>
+        <div class="modal-actions">
+          <button
+            class="btn yellow"
+            type="button"
+            onclick="console.log('DEBUG button yellow click'); issueCard('yellow'); return false;"
+          >
+            Yellow Card
+          </button>
+          <button class="btn red" type="button" onclick="issueCard('red'); return false;">
+            Red Card
+          </button>
+          <button class="btn" type="button" onclick="issueCard('injury'); return false;">
+            Injury
+          </button>
+        </div>
+      </div>
+    </div>
+    <script>
+      let targetUserId = null;
+
+      function openCardModal(el) {
+        console.log('DEBUG openCardModal', el.dataset.uid, el.dataset.username);
+        targetUserId = el.dataset.uid;
+        const username = el.dataset.username;
+        document.getElementById('modalTitle').innerText = `Issue card to ${username}`;
+
+        document.getElementById('cardModal').style.display = 'flex';
+      }
+
+      function closeModal() {
+        document.getElementById('cardModal').style.display = 'none';
+        targetUserId = null;
+      }
+
+      async function issueCard(type) {
+        console.log('DEBUG issueCard', type, 'targetUserId=', targetUserId);
+        if (!targetUserId) return;
+
+        try {
+          const res = await fetch('/s2627/issue_card', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'same-origin',
+            body: JSON.stringify({
+              target_uid: targetUserId,
+              card: type,
+            }),
+          });
+
+          const payload = await res.json().catch(() => ({}));
+
+          if (!res.ok) {
+            const msg = payload.error || 'Failed to issue card.';
+            alert(msg);
+            return;
+          }
+
+          closeModal();
+          window.location.reload();
+        } catch (err) {
+          alert('Network error while issuing card.');
+        }
+      }
+
+      // Backdrop click closes modal
+      document.getElementById('cardModal').addEventListener('click', (e) => {
+        if (e.target.id === 'cardModal') closeModal();
+      });
+    </script>
+  </body>
+</html>
