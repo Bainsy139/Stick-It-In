@@ -512,13 +512,439 @@ def auth_custom_token():
 # ============================
 # S26/27 ROUTES (NEW SEASON)
 # ============================
+
 @app.route("/s2627/home")
 def s2627_home():
-    return render_template("season2627home.html")
+    """
+    S26/27 Home (NEW)
+    Uses real Firestore data (mirrors /home logic) but renders season2627home.html.
+    """
+    if "user_id" not in session:
+        flash("⚠️ Please log in first.")
+        return redirect(url_for("login"))
+
+    user_id = session["user_id"]
+
+    # ---------------------------
+    # Timer window (Mon 00:01 → Fri 23:58 UTC) vs weekend lockout
+    # ---------------------------
+    now = datetime.now(timezone.utc)
+    weekday = now.weekday()
+    monday_start = now - timedelta(
+        days=weekday,
+        hours=now.hour,
+        minutes=now.minute,
+        seconds=now.second,
+        microseconds=now.microsecond
+    ) + timedelta(minutes=1)
+    friday_end = monday_start + timedelta(days=4, hours=23, minutes=58)
+
+    window_open = bool(monday_start <= now <= friday_end)
+    if window_open:
+        remaining = friday_end - now
+        days = remaining.days
+        hours, rem = divmod(remaining.seconds, 3600)
+        minutes, _ = divmod(rem, 60)
+        time_left = f"{days}d {hours}h {minutes}m left"
+    else:
+        time_left = "Locked (weekend)"
+
+    # ---------------------------
+    # Defaults
+    # ---------------------------
+    username = session.get("username") or "Unknown"
+    tier = "Amateur"
+    community_pot = 0.0
+    user_value = 0.0
+    league_position = 0
+    week_number = 0
+    activity = []
+
+    # ---------------------------
+    # Season tracking (week number)
+    # ---------------------------
+    try:
+        season_doc = db.collection("state").document("seasonTracking").get()
+        if season_doc.exists:
+            season_data = season_doc.to_dict() or {}
+            week_number = int(season_data.get("weekNumber", 0) or 0)
+    except Exception as e:
+        print("ℹ️ s2627_home: seasonTracking read error:", e)
+
+    # ---------------------------
+    # Latest pot (state/latestPot.value)
+    # ---------------------------
+    latest_pot_ts = None
+    try:
+        pot_doc = db.collection("state").document("latestPot").get()
+        if pot_doc.exists:
+            pot_data = pot_doc.to_dict() or {}
+            community_pot = float(pot_data.get("value", 0.0) or 0.0)
+            latest_pot_ts = pot_data.get("timestamp")
+    except Exception as e:
+        print("ℹ️ s2627_home: latestPot read error:", e)
+
+    # ---------------------------
+    # User doc (username, teamValue, counts, penalties)
+    # ---------------------------
+    user_data = {}
+    try:
+        user_doc = db.collection("users").document(user_id).get()
+        if user_doc.exists:
+            user_data = user_doc.to_dict() or {}
+            username = user_data.get("username") or username
+            user_value = float(user_data.get("teamValue", 0.0) or 0.0)
+    except Exception as e:
+        print("ℹ️ s2627_home: user read error:", e)
+
+    # ---------------------------
+    # Leaderboard position (rank by adjusted points, then accuracy) – matches /home
+    # ---------------------------
+    try:
+        correct_predictions = int(user_data.get("correctPredictions", 0) or 0)
+        correct_btts = int(user_data.get("correctBTTS", 0) or 0)
+        total_predictions = int(user_data.get("totalPredictions", 0) or 0)
+        total_btts = int(user_data.get("totalBTTS", 0) or 0)
+
+        yellow_cards = int(user_data.get("yellowCardsReceived", 0) or 0)
+        red_cards = int(user_data.get("redCardsReceived", 0) or 0)
+        injuries = int(user_data.get("injuriesReceived", 0) or 0)
+
+        total_games = total_predictions + total_btts
+        my_points = (correct_predictions + correct_btts) - (yellow_cards + (3 * red_cards) + (2 * injuries))
+        my_accuracy = round(((correct_predictions + correct_btts) / total_games) * 100, 1) if total_games > 0 else 0.0
+
+        leaderboard = []
+        for u in db.collection("users").stream():
+            u_data = u.to_dict() or {}
+            u_points_raw = int(u_data.get("correctPredictions", 0) or 0) + int(u_data.get("correctBTTS", 0) or 0)
+            u_total = int(u_data.get("totalPredictions", 0) or 0) + int(u_data.get("totalBTTS", 0) or 0)
+            if u_total < 2:
+                continue
+            u_yellow = int(u_data.get("yellowCardsReceived", 0) or 0)
+            u_red = int(u_data.get("redCardsReceived", 0) or 0)
+            u_injury = int(u_data.get("injuriesReceived", 0) or 0)
+            u_adjusted = u_points_raw - (u_yellow + (3 * u_red) + (2 * u_injury))
+            u_accuracy = round((u_points_raw / u_total) * 100, 1) if u_total > 0 else 0.0
+            leaderboard.append({"id": u.id, "adjusted_points": u_adjusted, "accuracy": u_accuracy})
+
+        leaderboard.sort(key=lambda x: (-x["adjusted_points"], -x["accuracy"]))
+
+        league_position = 0
+        for idx, row in enumerate(leaderboard):
+            if row["id"] == user_id:
+                league_position = idx + 1
+                break
+
+        # Tier mapping (your tier plan)
+        if 1 <= league_position <= 15:
+            tier = "Platinum"
+        elif 16 <= league_position <= 50:
+            tier = "Gold"
+        elif 51 <= league_position <= 100:
+            tier = "Silver"
+        else:
+            tier = "Amateur"
+
+    except Exception as e:
+        print("ℹ️ s2627_home: leaderboard compute error:", e)
+
+    # ---------------------------
+    # Activity feed (latest 3 public events)
+    # ---------------------------
+    try:
+        q = (
+            db.collection("activity_events")
+            .where("season", "==", "2627")
+            .where("visibility", "==", "public")
+            .order_by("created_at", direction=firestore.Query.DESCENDING)
+            .limit(3)
+        )
+
+        for snap in q.stream():
+            d = snap.to_dict() or {}
+            ts = d.get("created_at")
+            try:
+                ts_fmt = ts.strftime("%d-%b-%y") if hasattr(ts, "strftime") else ""
+            except Exception:
+                ts_fmt = ""
+
+            activity.append({
+                "type": d.get("type"),
+                "actor_name": d.get("actor_name"),
+                "target_name": d.get("target_name"),
+                "payload": d.get("payload", {}),
+                "timestamp": ts_fmt,
+            })
+
+    except Exception as e:
+        print("ℹ️ s2627_home: activity query error:", e)
+
+    return render_template(
+        "season2627home.html",
+        username=username,
+        tier=tier,
+        community_pot=community_pot,
+        user_value=user_value,
+        league_position=league_position,
+        window_open=window_open,
+        time_left=time_left,
+        activity=activity
+    )
+
+# === Inserted S26/27 NEW ROUTES ===
+
+@app.route("/s2627/reporting")
+def s2627_reporting():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    events = []
+
+    try:
+        q = (
+            db.collection("activity_events")
+            .where("season", "==", "2627")
+            .where("visibility", "==", "public")
+            .order_by("created_at", direction=firestore.Query.DESCENDING)
+            .limit(25)
+        )
+
+        for snap in q.stream():
+            d = snap.to_dict() or {}
+            events.append({
+                "id": snap.id,
+                "type": d.get("type"),
+                "week": d.get("week"),
+                "actor_name": d.get("actor_name"),
+                "target_name": d.get("target_name"),
+                "payload": d.get("payload", {}),
+                "created_at": d.get("created_at"),
+            })
+
+    except Exception as e:
+        print("s2627_reporting error:", e)
+
+    tracking = db.collection("state").document("seasonTracking").get()
+    week_number = tracking.to_dict().get("weekNumber") if tracking.exists else None
+
+    return render_template(
+        "season2627Reporting.html",
+        events=events,
+        week_number=week_number
+    )
+
+# -----------------------------------------------------
+# S2627: Issue Card API (activity_events, no press_reports, no remedies)
+# -----------------------------------------------------
+@app.route("/s2627/issue_card", methods=["POST"])
+def s2627_issue_card():
+    if "user_id" not in session:
+        return jsonify({"error": "Not logged in"}), 403
+
+    # Accept BOTH legacy and new payload shapes
+    data = request.get_json(silent=True) or {}
+
+    actor_uid = session["user_id"]
+
+    target_uid = (
+        data.get("target_uid")
+        or data.get("target_user")   # legacy
+    )
+
+    card = (
+        data.get("card")
+        or data.get("card_type")     # legacy
+        or ""
+    ).lower()
+
+    reason = (data.get("reason") or "").strip()
+
+    if not target_uid or card not in ("yellow", "red", "injury"):
+        return jsonify({"error": "Invalid payload"}), 400
+
+    if target_uid == actor_uid:
+        return jsonify({"error": "Cannot target self"}), 400
+
+    actor_ref = db.collection("users").document(actor_uid)
+    target_ref = db.collection("users").document(target_uid)
+
+    actor_snap = actor_ref.get()
+    target_snap = target_ref.get()
+
+    if not actor_snap.exists or not target_snap.exists:
+        return jsonify({"error": "User not found"}), 404
+
+    actor = actor_snap.to_dict() or {}
+    target = target_snap.to_dict() or {}
+
+    # EXACT same fields as legacy system
+    card_map = {
+        "yellow": {
+            "available": "yellowCardsAvailable",
+            "received": "yellowCardsReceived",
+            "label": "Yellow Card",
+        },
+        "red": {
+            "available": "redCardsAvailable",
+            "received": "redCardsReceived",
+            "label": "Red Card",
+        },
+        "injury": {
+            "available": "injuriesAvailable",
+            "received": "injuriesReceived",
+            "label": "Injury",
+        },
+    }
+
+    cfg = card_map[card]
+
+    available = int(actor.get(cfg["available"], 0))
+    received  = int(target.get(cfg["received"], 0))
+
+    if available <= 0:
+        return jsonify({"error": f"No {cfg['label']}s available"}), 400
+
+    # Current week
+    season_doc = db.collection("state").document("seasonTracking").get()
+    week_number = (season_doc.to_dict() or {}).get("weekNumber", 0)
+
+    # Atomic update (same pattern as legacy)
+    batch = db.batch()
+    batch.update(actor_ref, {cfg["available"]: available - 1})
+    batch.update(target_ref, {cfg["received"]: received + 1})
+    batch.commit()
+
+    # Activity event (new system)
+    db.collection("activity_events").add({
+        "type": "CARD_ISSUED",
+        "season": "2627",
+        "week": week_number,
+        "actor_uid": actor_uid,
+        "actor_name": actor.get("username") or actor.get("managerName") or "Unknown",
+        "target_uid": target_uid,
+        "target_name": target.get("username") or target.get("managerName") or "Unknown",
+        "payload": {
+            "card": card,
+            "reason": reason or None,
+        },
+        "visibility": "public",
+        "created_at": firestore.SERVER_TIMESTAMP,
+    })
+
+    return jsonify({
+        "ok": True,
+        "card": card,
+        "target": target_uid,
+        "remaining": available - 1,
+    }), 200
+
+# ============================
+# S26/27 league tiers
+# ============================
+@app.route("/s2627/league")
+def s2627_league():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    users_ref = db.collection("users")
+    users = users_ref.stream()
+
+    rows = []
+
+    # --- Current user card inventory (derived, not stored) ---
+    user_id = session["user_id"]
+    user_snap = db.collection("users").document(user_id).get()
+    user_data = user_snap.to_dict() if user_snap.exists else {}
+
+    card_inventory = {
+        "yellow": user_data.get("yellowCardsAvailable", 0),
+        "red": user_data.get("redCardsAvailable", 0),
+        "injury": user_data.get("injuriesAvailable", 0),
+    }
+
+    # --- Build available_cards for legacy shape ---
+    available_cards = []
+    if card_inventory.get("yellow", 0) > 0:
+        available_cards.append("yellow")
+    if card_inventory.get("red", 0) > 0:
+        available_cards.append("red")
+    if card_inventory.get("injury", 0) > 0:
+        available_cards.append("injury")
+
+    for user in users:
+        data = user.to_dict()
+
+        total_predictions = data.get("totalPredictions", 0)
+        total_btts = data.get("totalBTTS", 0)
+        total_games = total_predictions + total_btts
+
+        correct_predictions = data.get("correctPredictions", 0)
+        correct_btts = data.get("correctBTTS", 0)
+        total_points = correct_predictions + correct_btts
+
+        accuracy = round((total_points / total_games) * 100, 1) if total_games > 0 else 0.0
+
+        yellow_cards = data.get("yellowCardsReceived", 0)
+        red_cards = data.get("redCardsReceived", 0)
+        injuries = data.get("injuriesReceived", 0)
+
+        adjusted_points = total_points - (yellow_cards + (3 * red_cards) + (2 * injuries))
+
+        rows.append({
+            "uid": user.id,
+            "username": data.get("username", "Unknown"),
+            "points": adjusted_points,
+            "accuracy": accuracy
+        })
+
+    rows.sort(key=lambda x: (-x["points"], -x["accuracy"]))
+
+    for i, r in enumerate(rows):
+        r["rank"] = i + 1
+
+        if r["rank"] <= 15:
+            r["tier"] = "platinum"
+        elif r["rank"] <= 50:
+            r["tier"] = "gold"
+        elif r["rank"] <= 100:
+            r["tier"] = "silver"
+        else:
+            r["tier"] = "amateur"
+
+    tiers = {
+        "platinum": [r for r in rows if r["tier"] == "platinum"],
+        "gold": [r for r in rows if r["tier"] == "gold"],
+        "silver": [r for r in rows if r["tier"] == "silver"],
+        "amateur": [r for r in rows if r["tier"] == "amateur"],
+    }
+
+    return render_template(
+        "season2627League.html",
+        tiers=tiers,
+        card_inventory=card_inventory,
+        current_user_id=session["user_id"],
+        available_cards=available_cards,
+    )
+
+
+@app.route("/s2627/game-entry")
+def s2627_game_entry():
+    """S26/27 Game Entry (NEW)"""
+    if "user_id" not in session:
+        flash("⚠️ Please log in first.")
+        return redirect(url_for("login"))
+
+    return render_template("season2627GameEntry.html")
+
+
+
+
+
 
 
 # -----------------------------------------------------
-# Profile (view + update) – user-doc native
+# current routes - to be discontinued - DO NOT ALTER OR REMOVE
 # -----------------------------------------------------
 @app.route('/profile', methods=['GET'])
 def profile():
@@ -710,16 +1136,17 @@ def submit_interest():
 
     return render_template("confirmation.html", name=name) '''
 
-@app.route("/home")
+'''@app.route("/home")
 def home():
     """User dashboard: shows weekly timer state, leaderboard position, quick stats, and public pot graph."""
     if "user_id" not in session:
         flash("⚠️ Please log in first.")
         return redirect(url_for("login"))
 
-    user_id = session["user_id"]
+    user_id = session["user_id"]'''
 
 
+'''
     # ---------------------------
     # Timer window (Mon 00:01 → Fri 23:58 UTC) vs weekend lockout
     # ---------------------------
@@ -935,6 +1362,7 @@ def home():
         pot_labels=pot_labels,
         pot_values=pot_values
     )
+'''
 
 # -----------------------------------------------------
 # Reporting Page Route
@@ -1151,7 +1579,7 @@ def update_user(user_id):
 
     return redirect(url_for("admin_home"))
 
-
+# clubs are obsolete
 @app.route("/admin/update_club_values", methods=["POST"])
 def update_club_values():
     if "user_id" not in session or not session.get("is_admin"):
@@ -2113,9 +2541,9 @@ def fcm_list_tokens():
         })
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500 '''
-
+'''
 # -----------------------------------------------------
-# Action Cards - now a single function for V3
+# Action Cards - now a single function for V3 - now legacy
 # -----------------------------------------------------
 @app.route("/issue_card", methods=["POST"])
 def issue_card():
@@ -2227,6 +2655,9 @@ def issue_card():
 
     except Exception as e:
         return jsonify({"message": f"⚠️ Error: {str(e)}"}), 500
+'''
+        
+
 
 # -----------------------------------------------------
 # globalleague updated for V3
@@ -2294,15 +2725,15 @@ def global_league():
     )
 
 # -----------------------------------------------------
-# Media page for V3
+# Media page for V3 - legacy
 # -----------------------------------------------------
-@app.route('/media')
+'''@app.route('/media')
 def media():
     return render_template("media.html")
-
+'''
 
 # -----------------------------------------------------
-# v2 - yet to be determined for V3
+# v2 - yet to be determined for V3 - legacy
 # -----------------------------------------------------
 @app.route("/marketplace/buy-item/<item_id>", methods=["POST"])
 def buy_marketplace_item(item_id):
@@ -2418,7 +2849,7 @@ def buy_marketplace_item(item_id):
     return redirect(url_for("marketplace"))
 
 # -----------------------------------------------------
-# Season Winners Archive
+# Season Winners Archive - legacy
 # -----------------------------------------------------
 @app.route('/archive')
 def archive():
@@ -2426,14 +2857,14 @@ def archive():
 
 
 # -----------------------------------------------------
-# Live Scores
+# Live Scores - legacy
 # -----------------------------------------------------
 @app.route('/live-scores')
 def live_scores_page():
     return render_template('live_scores.html')
 
 # -----------------------------------------------------
-# Live‑Scores (ALL predictions)
+# Live‑Scores (ALL predictions) - legacy
 # -----------------------------------------------------
 
 MAX_BATCH = 20
@@ -2649,274 +3080,6 @@ def build_community_picks():
 
     return picks, top3_accuracy, top3_streak, avg_win_rate
 
-
-@app.route("/tiktoklivegame")
-def tiktoklivegame():
-    # 1) Load the current game state
-    state_doc = db.collection("state").document("tiktokGameState").get()
-    state = state_doc.to_dict() if state_doc.exists else {}
-
-    today = state.get("activeGameDay", datetime.now().strftime("%Y-%m-%d"))
-    goal_count = state.get("goalCount", 0)
-    game_over = state.get("gameOver", False)
-    is_locked = state.get("locked", False)
-
-    # 2) Fetch fixtures
-    fixtures_doc = db.collection("tiktokLiveFixtures").document(today).get()
-    fixture_data = fixtures_doc.to_dict().get("matches", []) if fixtures_doc.exists else []
-
-    live_fixtures = []
-
-    # ✅ FIX: Use int for fixture IDs, match the API return structure
-    if fixture_data and isinstance(fixture_data[0], dict) and "fixture_id" in fixture_data[0]:
-        fixture_ids = [int(m["fixture_id"]) for m in fixture_data]
-
-        # 3) Fetch live scores from API
-        try:
-            url = "https://v3.football.api-sports.io/fixtures"
-            params = {"ids": "-".join(map(str, fixture_ids))}  # Convert to comma-separated string
-            response = requests.get(url, headers=HEADERS, params=params)
-
-            print(f"📡 API Status: {response.status_code}")
-            print(f"📦 API Response Text: {response.text[:500]}")
-
-            api_data = response.json().get("response", [])
-            id_map = {f["fixture"]["id"]: f for f in api_data}  # IDs are integers
-            print(f"🧩 API ID Map Keys: {list(id_map.keys())}")
-
-            # Merge API data with local match info
-            for match in fixture_data:
-                fid = int(match["fixture_id"])
-                api = id_map.get(fid)
-                if not api:
-                    print(f"⚠️ No match found for fixture ID: {fid}")
-                    continue
-
-                home = api["teams"]["home"]["name"]
-                away = api["teams"]["away"]["name"]
-                score1 = api["goals"]["home"] if api["goals"]["home"] is not None else "-"
-                score2 = api["goals"]["away"] if api["goals"]["away"] is not None else "-"
-                status = api["fixture"]["status"]["short"]  # e.g. "1H", "HT", "FT", "NS"
-
-                timestamp = api["fixture"].get("timestamp")
-                kickoff = datetime.fromtimestamp(timestamp).strftime("%H:%M") if timestamp else "TBC"
-
-                live_fixtures.append({
-                    "home": home,
-                    "away": away,
-                    "score1": score1,
-                    "score2": score2,
-                    "status": status,
-                    "kickoff": kickoff,
-                    "total_goals": (score1 if isinstance(score1, int) else 0) + (score2 if isinstance(score2, int) else 0)
-                })
-        except Exception as e:
-            print(f"❌ Error fetching live scores: {e}")
-    else:
-        # fallback to basic strings
-        live_fixtures = fixture_data  # list of plain strings like "St Mirren vs Annan (15:00)"
-
-    # 4) Fetch and sort leaderboard
-    guesses = db.collection("tiktokLiveGuesses").where("date", "==", today).stream()
-    leaderboard = sorted([g.to_dict() for g in guesses], key=lambda x: -x["guess"])
-
-    # ---- Add total_goals calculation here ----
-    total_goals = sum(
-        int(match.get("score1", 0)) + int(match.get("score2", 0))
-        for match in live_fixtures
-        if str(match.get("score1", "")).isdigit() and str(match.get("score2", "")).isdigit()
-    )
-
-    # 5) Render template
-    return render_template(
-        "tiktoklivegame.html",
-        fixtures=live_fixtures,
-        leaderboard=leaderboard,
-        goal_count=goal_count,
-        game_over=game_over,
-        is_locked=is_locked,
-        total_goals=total_goals
-    )
-
-
-# -----------------------------------------------------
-# API: TikTok Live Fixtures (JSON)
-# -----------------------------------------------------
-@app.route("/api/tiktok-live-fixtures")
-def api_tiktok_live_fixtures():
-    today = db.collection("state") \
-              .document("tiktokGameState") \
-              .get().to_dict() \
-              .get("activeGameDay", datetime.now().strftime("%Y-%m-%d"))
-
-    goal_count = db.collection("state") \
-                 .document("tiktokGameState") \
-                 .get().to_dict() \
-                 .get("goalCount", 0)
-
-    fixtures_doc = db.collection("tiktokLiveFixtures").document(today).get()
-    fixture_data = fixtures_doc.to_dict().get("matches", []) if fixtures_doc.exists else []
-
-    live_fixtures = []
-
-    if fixture_data and isinstance(fixture_data[0], dict) and "fixture_id" in fixture_data[0]:
-        fixture_ids = [int(m["fixture_id"]) for m in fixture_data]
-        try:
-            url = "https://v3.football.api-sports.io/fixtures"
-            params = {"ids": "-".join(map(str, fixture_ids))}
-            response = requests.get(url, headers=HEADERS, params=params)
-            api_data = response.json().get("response", [])
-            id_map = {f["fixture"]["id"]: f for f in api_data}
-
-            for match in fixture_data:
-                fid = int(match["fixture_id"])
-                api = id_map.get(fid)
-                if not api:
-                    continue
-
-                home = api["teams"]["home"]["name"]
-                away = api["teams"]["away"]["name"]
-                score1 = api["goals"]["home"] if api["goals"]["home"] is not None else "-"
-                score2 = api["goals"]["away"] if api["goals"]["away"] is not None else "-"
-                status = api["fixture"]["status"]["short"]
-                timestamp = api["fixture"].get("timestamp")
-                kickoff = datetime.fromtimestamp(timestamp).strftime("%H:%M") if timestamp else "TBC"
-
-                live_fixtures.append({
-                    "home": home,
-                    "away": away,
-                    "score1": score1,
-                    "score2": score2,
-                    "status": status,
-                    "kickoff": kickoff,
-                    "total_goals": (score1 if isinstance(score1, int) else 0) + (score2 if isinstance(score2, int) else 0)
-                })
-        except Exception as e:
-            return jsonify({"error": str(e)}), 500
-    else:
-        live_fixtures = fixture_data
-
-    return jsonify({
-        "fixtures": live_fixtures,
-        "goal_count": goal_count
-    })
-
-
-@app.route("/submit_tiktok_guess", methods=["POST"])
-def submit_tiktok_guess():
-    name  = request.form.get("name", "").strip()
-    guess = int(request.form.get("guess", 0))
-
-    if not name or guess <= 0:
-        return redirect(url_for("tiktoklivegame"))
-
-    today = db.collection("state") \
-              .document("tiktokGameState") \
-              .get().to_dict() \
-              .get("activeGameDay",
-                   datetime.now().strftime("%Y-%m-%d"))
-
-    # Prevent duplicate
-    existing = db.collection("tiktokLiveGuesses") \
-                 .where("date", "==", today) \
-                 .where("name", "==", name) \
-                 .stream()
-    if any(existing):
-        return redirect(url_for("tiktoklivegame"))
-
-    db.collection("tiktokLiveGuesses").add({
-        "name": name,
-        "guess": guess,
-        "eliminated": False,
-        "date": today
-    })
-
-    return redirect(url_for("tiktoklivegame"))
-
-@app.route("/admin/add_tiktok_guess", methods=["POST"])
-def add_tiktok_guess():
-    name = request.form.get("tt_name", "").strip()
-    guess = int(request.form.get("tt_guess", 0))
-
-    if not name or guess <= 0:
-        return redirect(url_for("admin_home"))  # or flash an error
-
-    # Get active TikTok game day
-    state_doc = db.collection("state").document("tiktokGameState").get()
-    game_day = state_doc.to_dict().get("activeGameDay", datetime.now().strftime("%Y-%m-%d"))
-
-    # Prevent duplicates
-    existing = db.collection("tiktokLiveGuesses") \
-                 .where("date", "==", game_day) \
-                 .where("name", "==", name) \
-                 .stream()
-
-    if any(existing):
-        return redirect(url_for("admin_home"))  # Already exists
-
-    # Add guess to Firestore
-    db.collection("tiktokLiveGuesses").add({
-        "name": name,
-        "guess": guess,
-        "eliminated": False,
-        "date": game_day
-    })
-
-    return redirect(url_for("admin_home"))
-
-
-@app.route("/set_goals/<int:count>")
-def set_goals(count):
-    state_ref = db.collection("state").document("tiktokGameState")
-    state_doc = state_ref.get()
-    if not state_doc.exists:
-        return "❌ No game state found", 404
-
-    game_day = state_doc.to_dict().get("activeGameDay")
-    state_ref.update({"goalCount": count})
-
-    # LIVE elimination: kill off guesses lower than current total
-    guesses = db.collection("tiktokLiveGuesses") \
-                .where("date", "==", game_day) \
-                .where("eliminated", "==", False) \
-                .stream()
-
-    for g in guesses:
-        if g.to_dict().get("guess", 0) < count:
-            g.reference.update({"eliminated": True})
-
-    return f"✅ Goal count set to {count}. Updated eliminations for under-guesses."
-
-@app.route("/end_tiktok_game", methods=["POST"])
-def end_tiktok_game():
-    goal_count = int(request.form["goalCount"])
-    state_ref = db.collection("state").document("tiktokGameState")
-
-    # Set game over + final score
-    state_ref.update({
-        "goalCount": goal_count,
-        "gameOver": True
-    })
-
-    # FINAL elimination: eliminate guesses over final total if still in
-    game_day = state_ref.get().to_dict().get("activeGameDay")
-    guesses = db.collection("tiktokLiveGuesses") \
-                .where("date", "==", game_day) \
-                .stream()
-
-    for doc in guesses:
-        g = doc.to_dict()
-        if not g.get("eliminated", False) and g.get("guess", 0) > goal_count:
-            doc.reference.update({"eliminated": True})
-
-    return redirect(url_for("admin_home"))
-
-@app.route("/toggle_lock")
-def toggle_lock():
-    state_ref   = db.collection("state").document("tiktokGameState")
-    current     = state_ref.get().to_dict().get("locked", False)
-    state_ref.update({"locked": not current})
-    return f"🔒 Submissions now {'locked' if not current else 'unlocked'}."
 
 
 # -----------------------------------------------------
