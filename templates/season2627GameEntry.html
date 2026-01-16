@@ -152,6 +152,12 @@
         font-size: 12px;
         color: var(--muted);
       }
+
+      .filter.active {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: linear-gradient(180deg, rgba(122, 162, 255, 0.18), rgba(122, 162, 255, 0.06));
+      }
     </style>
   </head>
 
@@ -159,62 +165,77 @@
     <main class="wrap">
       <!-- HEADER -->
       <section class="section">
-        <p class="kicker">Game Week 18</p>
+        <p class="kicker">Game Week {{ week_number }}</p>
         <h1 class="big">Allocate your positions</h1>
         <p class="hint">Once locked, positions are final.</p>
       </section>
 
       <!-- ALLOCATION STATUS -->
       <section class="section split">
-        <div class="pill">Results Remaining · <strong>6</strong></div>
-        <div class="pill">BTTS Remaining · <strong>4</strong></div>
+        <div class="pill">Results Remaining · <strong>{{ prediction_count }}</strong></div>
+        <div class="pill">BTTS Remaining · <strong>{{ btts_count }}</strong></div>
       </section>
 
-      <!-- FIXTURE -->
-      <section class="card">
+      <section class="section split" id="regionFilters">
+        <div class="pill filter active" data-region="all">All</div>
+        <div class="pill filter" data-region="england">England</div>
+        <div class="pill filter" data-region="scotland">Scotland</div>
+        <div class="pill filter" data-region="europe">Europe</div>
+        <div class="pill filter" data-region="world">World</div>
+      </section>
+
+      {% for f in fixtures %}
+      <section
+        class="card"
+        data-fixture="{{ f.fixtureID }}"
+        data-region="{% if f.league_id in ['39','40','45','46','47','48'] %}england{% elif f.league_id in ['179','180','181','182','185'] %}scotland{% elif f.league_id in ['2','3'] %}europe{% elif f.league_id in ['1'] %}world{% else %}other{% endif %}"
+      >
         <div class="row">
-          <span class="meta">Premier League</span>
-          <span class="meta">Sat 15:00</span>
+          <span class="meta">{{ f.league_name }}</span>
+          <span class="meta">{{ f.date }}</span>
         </div>
 
         <div class="teams">
-          <div class="team">Arsenal</div>
+          <div class="team">{{ f.team1 }}</div>
           <div class="vs">vs</div>
-          <div class="team">Newcastle</div>
+          <div class="team">{{ f.team2 }}</div>
         </div>
 
         <div class="actions">
-          <div class="btn primary">Home</div>
-          <div class="btn">Draw</div>
-          <div class="btn">Away</div>
-          <div class="btn" style="grid-column: span 3">BTTS · Yes</div>
+          <div class="btn {{ 'primary' if f.user_prediction == 'Home' }}">Home</div>
+          <div class="btn {{ 'primary' if f.user_prediction == 'Draw' }}">Draw</div>
+          <div class="btn {{ 'primary' if f.user_prediction == 'Away' }}">Away</div>
+
+          <div class="meta" style="display: flex; align-items: center; justify-content: center">
+            BTTS:
+          </div>
+          <div class="btn {{ 'primary' if f.user_btts == 'No' }}">No</div>
+          <div class="btn {{ 'primary' if f.user_btts == 'Yes' }}">Yes</div>
         </div>
       </section>
-
-      <!-- FIXTURE -->
-      <section class="card">
-        <div class="row">
-          <span class="meta">Championship</span>
-          <span class="meta">Sat 15:00</span>
-        </div>
-
-        <div class="teams">
-          <div class="team">Leeds</div>
-          <div class="vs">vs</div>
-          <div class="team">Norwich</div>
-        </div>
-
-        <div class="actions">
-          <div class="btn">Home</div>
-          <div class="btn">Draw</div>
-          <div class="btn">Away</div>
-          <div class="btn" style="grid-column: span 3">BTTS · No</div>
-        </div>
-      </section>
+      {% endfor %}
 
       <p class="meta" style="text-align: center; margin-top: 24px">
         Locking occurs automatically at midnight Friday
       </p>
     </main>
+    {% include "partials/bottom_nav.html" %}
+    <script>
+      const filters = document.querySelectorAll('#regionFilters .filter');
+      const cards = document.querySelectorAll('.card');
+
+      filters.forEach((f) => {
+        f.addEventListener('click', () => {
+          filters.forEach((x) => x.classList.remove('active'));
+          f.classList.add('active');
+
+          const region = f.dataset.region;
+          cards.forEach((card) => {
+            const cardRegion = (card.dataset.region || '').trim();
+            card.style.display = region === 'all' || cardRegion === region ? '' : 'none';
+          });
+        });
+      });
+    </script>
   </body>
 </html>

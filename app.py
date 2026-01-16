@@ -930,22 +930,283 @@ def s2627_league():
 
 @app.route("/s2627/game-entry")
 def s2627_game_entry():
-    """S26/27 Game Entry (NEW)"""
+    """S26/27 Game Entry – display existing Firestore fixtures only"""
     if "user_id" not in session:
         flash("⚠️ Please log in first.")
         return redirect(url_for("login"))
 
-    return render_template("season2627GameEntry.html")
+    user_id = session["user_id"]
+
+    # --- S26/27 league scope (cleaned & intentional) ---
+    league_ids = [
+        "39",   # Premier League
+        "40",   # Championship
+
+        "45",   # FA Cup
+        "48",   # League Cup
+
+        "179",  # Scottish Premiership
+        "180",  # Scottish Championship
+        "181",  # Scottish FA Cup
+        "182",  # Scottish Challenge Cup
+        "185",  # Scottish League Cup
+
+        "1",    # FIFA World Cup
+        "2",    # UEFA Champions League
+        "3",    # UEFA Europa League
+        "4",    # UEFA Euro Championship
+        "960",  # UEFA Euro Qualifiers
+
+        "15",   # FIFA Club World Cup
+        "10",   # World Friendlies
+        "32",   # World Cup Qualifiers (Europe)
+    ]
+
+    league_names = {
+        "39": "Premier League",
+        "40": "Championship",
+        "45": "FA Cup",
+        "48": "League Cup",
+        "179": "Scottish Premiership",
+        "180": "Scottish Championship",
+        "181": "Scottish FA Cup",
+        "182": "Scottish Challenge Cup",
+        "185": "Scottish League Cup",
+        "1": "FIFA World Cup",
+        "2": "UEFA Champions League",
+        "3": "UEFA Europa League",
+        "4": "UEFA Euro Championship",
+        "960": "UEFA Euro Qualifiers",
+        "15": "FIFA Club World Cup",
+        "10": "World Friendlies",
+        "32": "World Cup Qualifiers (Europe)",
+    }
+
+    # --- User prediction state (read-only) ---
+    prediction_count = 0
+    btts_count = 0
+    user_predictions = {}
+
+    try:
+        user_ref = db.collection("users").document(user_id)
+        user_doc = user_ref.get()
+        if user_doc.exists:
+            u = user_doc.to_dict() or {}
+            prediction_count = u.get("predictionCount", 0)
+            btts_count = u.get("bttsCount", 0)
+
+        for p in user_ref.collection("predictions").stream():
+            d = p.to_dict() or {}
+            user_predictions[p.id] = {
+                "prediction": d.get("prediction"),
+                "btts": d.get("btts"),
+            }
+    except Exception as e:
+        print("s2627_game_entry: user state error:", e)
+
+    # --- Load fixtures already in Firestore ---
+    fixtures = []
+
+    for league_id in league_ids:
+        try:
+            snaps = db.collection(f"web_fixtures/{league_id}/matches").stream()
+            for snap in snaps:
+                d = snap.to_dict() or {}
+
+                raw_date = d.get("date")
+                try:
+                    dt = datetime.fromisoformat(raw_date).replace(tzinfo=timezone.utc)
+                    pretty_date = dt.strftime("%b %d, %Y %I:%M %p UTC")
+                    ts = int(dt.timestamp() * 1000)
+                except Exception:
+                    dt = None
+                    pretty_date = "Invalid Date"
+                    ts = None
+
+                pred = user_predictions.get(snap.id, {})
+
+                fixtures.append({
+                    "fixtureID": snap.id,
+                    "league_id": league_id,
+                    "league_name": league_names.get(league_id, league_id),
+
+                    "team1": d.get("team1", "Unknown"),
+                    "team2": d.get("team2", "Unknown"),
+                    "team1_logo": d.get("team1_logo", ""),
+                    "team2_logo": d.get("team2_logo", ""),
+                    "venue": d.get("venue", "Unknown"),
+
+                    "date": pretty_date,
+                    "datetime": dt,
+                    "ts": ts,
+
+                    "user_prediction": pred.get("prediction"),
+                    "user_btts": pred.get("btts"),
+                    "predicted": bool(pred),
+                })
+        except Exception as e:
+            print(f"s2627_game_entry: fixtures error [{league_id}]:", e)
+
+    fixtures.sort(key=lambda x: x["datetime"] or datetime.max)
+
+    return render_template(
+        "season2627GameEntry.html",
+        fixtures=fixtures,
+        prediction_count=prediction_count,
+        btts_count=btts_count,
+        user_prediction_map=user_predictions,
+    )
+
+@app.route("/submit_prediction", methods=["POST"])
+def submit_prediction():
+    """Save a prediction without a transaction (simplified). Counts only decrement on first set."""
+    # Simplified, non-transactional save to avoid the 'str has no attribute exists' crash
+    user_id = session.get("user_id")
+    if not user_id:
+        return jsonify({"error": "User not logged in"}), 403
+
+    data = request.get_json(silent=True) or {}
+
+    fixture_id = str(data.get("fixtureID", "")).strip()
+    prediction = data.get("prediction")  # 'Home' | 'Away' | 'Draw' | None
+    btts = data.get("btts")              # 'Yes' | 'No' | None
+
+    team1 = (data.get("team1") or "").strip() or "Unknown"
+    team2 = (data.get("team2") or "").strip() or "Unknown"
+    venue = (data.get("venue") or "").strip() or "Unknown"
+    raw_date = (data.get("date") or "").strip() or "Invalid Date"
+
+    if not fixture_id or (not prediction and not btts):
+        return jsonify({"error": "Invalid data – must provide at least one prediction"}), 400
+
+    # Parse match datetime (best-effort)
+    try:
+        dt = datetime.strptime(raw_date, "%b %d, %Y %I:%M %p UTC").replace(tzinfo=timezone.utc)
+    except Exception:
+        dt = None
+
+    user_ref = db.collection("users").document(user_id)
+    pred_ref = user_ref.collection("predictions").document(fixture_id)
+
+    try:
+        # Read current user and prior prediction without a transaction
+        user_snap = user_ref.get()
+        if not user_snap.exists:
+            return jsonify({"error": "User not found"}), 404
+        user_data = user_snap.to_dict() or {}
+
+        prior_snap = pred_ref.get()
+        prior = prior_snap.to_dict() if prior_snap.exists else {}
+
+        # Current remaining counts (clamped to >= 0)
+        pred_left = max(0, int(user_data.get("predictionCount", 0)))
+        btts_left = max(0, int(user_data.get("bttsCount", 0)))
+
+        # Determine if we're adding new fields (to adjust counters)
+        adding_pred = bool(prediction) and not prior.get("prediction")
+        adding_btts = (btts in ("Yes", "No")) and not prior.get("btts")
+
+        # Hard stop: do not allow going below 0
+        if adding_pred and pred_left <= 0:
+            return jsonify({
+                "error": "No result predictions left this week.",
+                "ok": False,
+                "counts": {
+                    "predictionCount": pred_left,
+                    "bttsCount": btts_left
+                }
+            }), 400
+
+        if adding_btts and btts_left <= 0:
+            return jsonify({
+                "error": "No BTTS predictions left this week.",
+                "ok": False,
+                "counts": {
+                    "predictionCount": pred_left,
+                    "bttsCount": btts_left
+                }
+            }), 400
+
+        # Build merged document
+        new_doc = {
+            **prior,
+            "fixture_id": fixture_id,
+            "team1": team1,
+            "team2": team2,
+            "venue": venue,
+            "date": dt if dt else (prior.get("date") or raw_date),
+            "timestamp": datetime.utcnow().replace(tzinfo=timezone.utc)
+        }
+        if prediction:
+            new_doc["prediction"] = prediction
+        if btts in ("Yes", "No"):
+            new_doc["btts"] = btts
+
+        batch = db.batch()
+        batch.set(pred_ref, new_doc, merge=True)
+
+        # Update counters only when adding new info (no hard gatekeeping)
+        updates = {}
+        if adding_pred:
+            updates["predictionCount"] = max(0, pred_left - 1)
+            updates["totalPredictions"] = user_data.get("totalPredictions", 0) + 1
+        if adding_btts:
+            updates["bttsCount"] = max(0, btts_left - 1)
+            updates["totalBTTS"] = user_data.get("totalBTTS", 0) + 1
+        if updates:
+            batch.update(user_ref, updates)
+
+        batch.commit()
+
+        final_counts = {
+            "predictionCount": updates.get("predictionCount", pred_left),
+            "bttsCount": updates.get("bttsCount", btts_left),
+            "totalPredictions": updates.get("totalPredictions", user_data.get("totalPredictions", 0)),
+            "totalBTTS": updates.get("totalBTTS", user_data.get("totalBTTS", 0))
+        }
+
+        return jsonify({
+            "message": "Prediction saved successfully!",
+            "ok": True,
+            "counts": final_counts,
+            "applied": {"prediction": prediction, "btts": btts}
+        }), 200
+
+    except Exception as e:
+        print(f"🔥 submit_prediction error (simplified): {e}")
+        return jsonify({"error": "Failed to save prediction."}), 500
+
+
+
+@app.route("/s2627/office")
+def s2627_office():
+    return render_template("season2627Office.html")
+
+
+@app.route("/s2627/marketplace")
+def s2627_marketplace():
+    return render_template("season2627Marketplace.html")
+
+
+@app.route("/s2627/live-scores")
+def s2627_live_scores():
+    return render_template("season2627LiveScores.html")
+
+@app.route("/s2627/about")
+def s2627_about():
+    if "user_id" not in session:
+        return redirect(url_for("login"))
+
+    return render_template("season2627About.html")
 
 
 
 
-
-
-
-# -----------------------------------------------------
-# current routes - to be discontinued - DO NOT ALTER OR REMOVE
-# -----------------------------------------------------
+# =======================================================================================
+# current routes below - to be discontinued - DO NOT ALTER OR REMOVE YET
+# s2627 routes are to be above this line, once complete, everything below will be 
+# commented out prior to being removed. 
+# =======================================================================================
 @app.route('/profile', methods=['GET'])
 def profile():
     if "user_id" not in session:
@@ -1987,14 +2248,7 @@ def about():
 def index():
     return redirect(url_for('home'))
 
-'''# -----------------------------------------------------
-# Serve Firebase Messaging service worker at origin root
-# -----------------------------------------------------
-@app.route('/firebase-messaging-sw.js')
-def firebase_sw():
-    # This file lives in /static/firebase-messaging-sw.js but must be served at /
-    # so the service worker can control the whole origin.
-    return send_from_directory('static', 'firebase-messaging-sw.js', mimetype='application/javascript') '''
+'''
 
 # -----------------------------------------------------
 # Game Entry Route
@@ -2002,8 +2256,8 @@ def firebase_sw():
 web_leagueIDs = [
     "39",  # English Premier League
     "40",  # English Championship
-    "41",  # English League 1
-    "42",  # English League 2
+    "41",  # English League 1 - Drop for s2627
+    "42",  # English League 2                        - Drop for s2627
     "45",  # FA Cup
     "46",  # EFL Trophy
     "47",  # FA Trophy
@@ -2012,18 +2266,18 @@ web_leagueIDs = [
     "180", # Scottish Championship
     "181", # Scottish FA Cup
     "182", # Scottish Challenge Cup
-    "183", # Scottish League 1
-    "184", # Scottish League 2
+    "183", # Scottish League 1                       - Drop for s2627
+    "184", # Scottish League 2                       - Drop for s2627
     "185", # Scottish League Cup
-    #"15",  # FIFA Club World Cup - pre-season only  - comment this out on August 2nd
-    #"10",  # World Friendlies                       - comment this out on August 2nd
-    #"32",  # World Cup Quals (Europe)               - comment this out on August 2nd
-    "1",   # FIFA World Cup
-    "2",   # UEFA Champions League
-    "3"   # UEFA Europa League
-    #"4",   # UEFA Euro Championship                 - comment this out on August 2nd
-    #"960", # UEFA Euro Qualifiers                   - comment this out on August 2nd
-    #"253"  # MLS - fine for pre-season              - comment this out on August 2nd
+    #"15",  # FIFA Club World Cup                    - add this 
+    #"10",  # World Friendlies                       - Add this
+    #"32",  # World Cup Quals (Europe)               - Add this
+    "1",   # FIFA World Cup                          - Add this
+    "2",   # UEFA Champions League                   - Add this
+    "3"   # UEFA Europa League                       - Add this
+    #"4",   # UEFA Euro Championship                 - Add this
+    #"960", # UEFA Euro Qualifiers                   - Add this
+    #"253"  # MLS - fine for pre-season              - Add this
 ]
 
 LEAGUE_NAME_MAP = {
@@ -2291,256 +2545,9 @@ def submit_prediction():
     except Exception as e:
         print(f"🔥 submit_prediction error (simplified): {e}")
         return jsonify({"error": "Failed to save prediction."}), 500
-
-
 '''
-# -----------------------------------------------------
-# FCM token registration
-# -----------------------------------------------------
-
-def _resolve_token_for_uid(uid: str) -> str:
-    """Try hard to find a usable FCM token for this user.
-    Checks multiple legacy field names and optional subcollections.
-    Returns an empty string if nothing is found.
-    """
-    try:
-        user_ref = db.collection("users").document(uid)
-        snap = user_ref.get()
-        if not snap.exists:
-            print(f"[fcm] no user doc for {uid}")
-            return ""
-        d = snap.to_dict() or {}
-
-        # 1) Flat, common field names (new → old)
-        for key in [
-            "fcmToken",            # current flat
-            "fcm_token",           # snake case
-            "webToken",            # some early experiments
-            "web_token",
-        ]:
-            t = (d.get(key) or "").strip()
-            if t:
-                return t
-
-        # 2) Arrays we may have stored historically
-        array_candidates = [
-            (d.get("fcmTokens"), False),                # e.g., [t1, t2, ...]
-            ((d.get("fcm") or {}).get("web_tokens"), True),
-            ((d.get("fcm") or {}).get("ios_tokens"), True),
-            ((d.get("fcm") or {}).get("android_tokens"), True),
-        ]
-        best = ""
-        for arr, is_list in array_candidates:
-            if isinstance(arr, list) and arr:
-                best = (arr[-1] or "").strip()  # newest last
-                if best:
-                    return best
-
-        # 3) Subcollection under the user: users/{uid}/fcm_tokens or fcmTokens
-        for subname in ("fcm_tokens", "fcmTokens"):
-            try:
-                q = (
-                    user_ref.collection(subname)
-                    .order_by("ts", direction=firestore.Query.DESCENDING)
-                    .limit(1)
-                )
-                sub = list(q.stream())
-                if sub:
-                    doc = sub[0].to_dict() or {}
-                    t = (doc.get("token") or "").strip()
-                    if t:
-                        return t
-            except Exception as ie:
-                # collection may not exist; ignore
-                pass
-
-        # 4) As a last resort: collection group query (if user writes elsewhere)
-        try:
-            cg = (
-                db.collection_group("fcm_tokens")
-                .where("uid", "==", uid)
-                .order_by("ts", direction=firestore.Query.DESCENDING)
-                .limit(1)
-            )
-            sub = list(cg.stream())
-            if sub:
-                doc = sub[0].to_dict() or {}
-                t = (doc.get("token") or "").strip()
-                if t:
-                    return t
-        except Exception:
-            pass
-
-        return ""
-    except Exception as e:
-        print(f"⚠️ _resolve_token_for_uid error: {e}")
-        return ""
-@app.route("/fcm/register", methods=["POST"])
-def fcm_register():
-    """Store FCM token across flat field, array mirror, and a subcollection for discovery."""
-    if "user_id" not in session:
-        return jsonify({"success": False, "message": "Not logged in"}), 401
-
-    payload = request.get_json(silent=True) or {}
-    token = (payload.get("token") or "").strip()
-    platform = (payload.get("platform") or "web").strip().lower()
-
-    if not token:
-        return jsonify({"success": False, "message": "Missing token"}), 400
-
-    try:
-        uid = session["user_id"]
-        user_ref = db.collection("users").document(uid)
-
-        update = {
-            "fcmToken": token,  # flat latest
-            "fcmTokens": firestore.ArrayUnion([token]),  # legacy array mirror
-            "fcm": {
-                "last_registered": firestore.SERVER_TIMESTAMP
-            }
-        }
-        # Use ArrayUnion to avoid duplicates per platform
-        if platform == "web":
-            update["fcm"]["web_tokens"] = firestore.ArrayUnion([token])
-        else:
-            update["fcm"][f"{platform}_tokens"] = firestore.ArrayUnion([token])
-
-        batch = db.batch()
-        batch.set(user_ref, update, merge=True)
-        # Optional subcollection record for newest-first discovery
-        sub = user_ref.collection("fcm_tokens").document()
-        batch.set(sub, {"token": token, "uid": uid, "platform": platform, "ts": firestore.SERVER_TIMESTAMP})
-        batch.commit()
-        return jsonify({"success": True})
-    except Exception as e:
-        print(f"🔥 fcm_register error: {e}")
-        return jsonify({"success": False, "message": "Failed to save token"}), 500
 
 
-# -----------------------------------------------------
-# FCM test notification (public endpoint)
-# -----------------------------------------------------
-@app.route("/fcm/send_test", methods=["POST"])
-def fcm_send_test():
-    """Send an immediate WebPush test notification. Public for now; will lock down later."""
-    try:
-        data = request.get_json(silent=True) or {}
-        token = (data.get("token") or "").strip()
-        uid = (data.get("uid") or "").strip()
-
-        if not token and uid:
-            token = _resolve_token_for_uid(uid)
-
-        print(f"[fcm] resolved uid={uid or '-'} token={(token[:12] + '…') if token else ''}")
-        if not token:
-            return jsonify({"success": False, "message": "No FCM token provided (and none could be found for uid)."}), 400
-
-        message = messaging.Message(
-            webpush=messaging.WebpushConfig(
-                headers={"TTL": "300"},
-                notification=messaging.WebpushNotification(
-                    title="Stick It In 🚨",
-                    body="This is a test push notification!",
-                    icon="/static/icons/icon-192.png",
-                    badge="/static/icons/badge-72.png",
-                    tag="sii-test",
-                    require_interaction=True
-                ),
-                fcm_options=messaging.WebpushFCMOptions(
-                    link="https://www.stickitin.co.uk/home"
-                )
-            ),
-            data={
-                "source": "send_test",
-                "sent_at": datetime.utcnow().isoformat() + "Z"
-            },
-            token=token
-        )
-        response = messaging.send(message)
-        return jsonify({"success": True, "response": response}), 200
-
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
-
-# -----------------------------------------------------
-# FCM delayed notification for testing
-# -----------------------------------------------------
-@app.route("/fcm/send_delayed", methods=["POST"])
-def fcm_send_delayed():
-    """Schedule a delayed WebPush via a background Timer. Dev only; replace with Cloud Tasks."""
-    try:
-        data = request.get_json(silent=True) or {}
-        token = (data.get("token") or "").strip()
-        uid = (data.get("uid") or "").strip()
-        delay = int(data.get("delay", 30))
-
-        if not token and uid:
-            token = _resolve_token_for_uid(uid)
-
-        print(f"[fcm] resolved uid={uid or '-'} token={(token[:12] + '…') if token else ''}")
-        if not token:
-            return jsonify({"success": False, "message": "No FCM token provided (and none could be found for uid)."}), 400
-
-        def send_later():
-            try:
-                message = messaging.Message(
-                    webpush=messaging.WebpushConfig(
-                        headers={"TTL": "600"},
-                        notification=messaging.WebpushNotification(
-                            title="Stick It In ⏰",
-                            body=f"This reminder fired after {delay} seconds!",
-                            icon="/static/icons/icon-192.png",
-                            badge="/static/icons/badge-72.png",
-                            tag="sii-delayed",
-                            require_interaction=True
-                        ),
-                        fcm_options=messaging.WebpushFCMOptions(
-                            link="https://www.stickitin.co.uk/home"
-                        )
-                    ),
-                    data={
-                        "source": "send_delayed",
-                        "delay_secs": str(delay)
-                    },
-                    token=token
-                )
-                response = messaging.send(message)
-                print(f"✅ Delayed push sent: {response}")
-            except Exception as e:
-                print(f"❌ Delayed push failed: {e}")
-
-        Timer(delay, send_later).start()
-        return jsonify({"success": True, "scheduled_in": delay}), 200
-
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500
-
-# -----------------------------------------------------
-# FCM debug: inspect tokens for a uid
-# -----------------------------------------------------
-@app.route("/fcm/tokens", methods=["GET"])
-def fcm_list_tokens():
-    """Inspect token shapes for a uid. Helpful during the migration to a single token model."""
-    uid = (request.args.get("uid") or "").strip()
-    if not uid:
-        return jsonify({"success": False, "message": "Provide ?uid="}), 400
-    try:
-        snap = db.collection("users").document(uid).get()
-        if not snap.exists:
-            return jsonify({"success": False, "message": "User not found"}), 404
-        d = snap.to_dict() or {}
-        fcm = d.get("fcm") or {}
-        return jsonify({
-            "success": True,
-            "resolved_token": _resolve_token_for_uid(uid),
-            "flat_token": d.get("fcmToken"),
-            "web_tokens": fcm.get("web_tokens"),
-            "ios_tokens": fcm.get("ios_tokens"),
-            "android_tokens": fcm.get("android_tokens"),
-            "last_registered": fcm.get("last_registered")
-        })
-    except Exception as e:
-        return jsonify({"success": False, "message": str(e)}), 500 '''
 '''
 # -----------------------------------------------------
 # Action Cards - now a single function for V3 - now legacy
@@ -2658,7 +2665,7 @@ def issue_card():
 '''
         
 
-
+'''
 # -----------------------------------------------------
 # globalleague updated for V3
 # -----------------------------------------------------
@@ -2723,7 +2730,7 @@ def global_league():
         current_user={"username": current_username},
         show_empty_msg=(len(all_users) == 0)
     )
-
+'''
 # -----------------------------------------------------
 # Media page for V3 - legacy
 # -----------------------------------------------------
@@ -2731,7 +2738,7 @@ def global_league():
 def media():
     return render_template("media.html")
 '''
-
+'''
 # -----------------------------------------------------
 # v2 - yet to be determined for V3 - legacy
 # -----------------------------------------------------
@@ -2847,7 +2854,7 @@ def buy_marketplace_item(item_id):
         flash("⚠️ An error occurred during purchase.")
 
     return redirect(url_for("marketplace"))
-
+'''
 # -----------------------------------------------------
 # Season Winners Archive - legacy
 # -----------------------------------------------------
